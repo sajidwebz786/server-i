@@ -7,9 +7,11 @@ async function start() {
   try {
     await sequelize.authenticate();
 
-    if (env.dbSyncAlter) {
+    if (env.dbSyncAlter && env.nodeEnv !== 'production') {
       await sequelize.sync({ alter: true });
       await seedDefaults();
+    } else if (env.dbSyncAlter) {
+      console.log('Skipping DB_SYNC_ALTER in production.');
     }
 
     app.listen(env.port, () => {
