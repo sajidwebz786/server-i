@@ -40,7 +40,7 @@ exports.register = asyncHandler(async (req, res) => {
     }, { transaction });
 
     await Wallet.create({ userId: created.id }, { transaction });
-    await createOtp({ userId: created.id, channel: 'mobile', target: mobile, purpose: 'register' });
+    await createOtp({ userId: created.id, channel: 'mobile', target: mobile, purpose: 'register' }, { transaction });
     return created;
   });
 

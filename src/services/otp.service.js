@@ -6,11 +6,11 @@ function generateOtp() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
-async function createOtp({ userId, channel, target, purpose }) {
+async function createOtp({ userId, channel, target, purpose }, options = {}) {
   const code = generateOtp();
   const expiresAt = new Date(Date.now() + env.otpExpiryMinutes * 60 * 1000);
 
-  const otp = await Otp.create({ userId, channel, target, purpose, code, expiresAt });
+  const otp = await Otp.create({ userId, channel, target, purpose, code, expiresAt }, options);
 
   // Replace this stub with SMS, WhatsApp, or email provider integration.
   console.log(`OTP for ${target}: ${code}`);
