@@ -19,7 +19,7 @@ const env = {
   dbSyncAlter: String(process.env.DB_SYNC_ALTER || 'false') === 'true',
   jwtSecret: process.env.JWT_SECRET || 'development-secret',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  adminEmail: process.env.ADMIN_EMAIL || 'admin@illuminate.local',
+  adminEmail: process.env.ADMIN_EMAIL || 'admin@illuminate.com',
   adminPassword: process.env.ADMIN_PASSWORD || 'Admin@12345',
   otpExpiryMinutes: Number(process.env.OTP_EXPIRY_MINUTES || 10),
   otpBypassCode: process.env.OTP_BYPASS_CODE || '',
