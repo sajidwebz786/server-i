@@ -11,6 +11,7 @@ const env = {
   dbUser: process.env.DB_USER || 'postgres',
   dbPassword: process.env.DB_PASSWORD || '',
   dbDialect: process.env.DB_DIALECT || 'postgres',
+  dbSsl: String(process.env.DB_SSL || process.env.NODE_ENV === 'production').toLowerCase() === 'true',
   dbSyncAlter: String(process.env.DB_SYNC_ALTER || 'false') === 'true',
   jwtSecret: process.env.JWT_SECRET || 'development-secret',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
