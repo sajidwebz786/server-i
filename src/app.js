@@ -16,10 +16,11 @@ const app = express();
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || env.clientUrls.includes('*') || env.clientUrls.includes(origin)) {
+    const normalizedOrigin = origin ? origin.replace(/\/+$/, '') : origin;
+    if (!normalizedOrigin || env.clientUrls.includes('*') || env.clientUrls.includes(normalizedOrigin)) {
       return callback(null, true);
     }
-    return callback(new Error(`CORS blocked for origin: ${origin}`));
+    return callback(new Error(`CORS blocked for origin: ${normalizedOrigin}`));
   },
   credentials: true
 }));
