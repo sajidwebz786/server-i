@@ -11,7 +11,7 @@ exports.home = asyncHandler(async (req, res) => {
 
   res.json({
     company: {
-      name: 'Luminateads',
+      name: 'Luminate Ads',
       positioning: 'Smart advertising, referral hierarchy, and task-based earning ecosystem',
       services: [
         'Advertising Promotion',

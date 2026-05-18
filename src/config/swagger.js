@@ -4,9 +4,9 @@ const options = {
   definition: {
     openapi: '3.0.3',
     info: {
-      title: 'Luminateads Promotion Platform API',
+      title: 'Luminate Ads Promotion Platform API',
       version: '1.0.0',
-      description: 'Backend APIs for the Luminateads advertising, referral hierarchy, task, wallet, withdrawal, and admin platform.'
+      description: 'Backend APIs for the Luminate Ads advertising, referral hierarchy, task, wallet, withdrawal, and admin platform.'
     },
     servers: [
       {

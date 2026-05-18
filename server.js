@@ -15,10 +15,10 @@ async function start() {
     }
 
     app.listen(env.port, () => {
-      console.log(`Luminateads API running on port ${env.port}`);
+      console.log(`Luminate Ads API running on port ${env.port}`);
     });
   } catch (error) {
-    console.error('Unable to start Luminateads API:', error);
+    console.error('Unable to start Luminate Ads API:', error);
     process.exit(1);
   }
 }

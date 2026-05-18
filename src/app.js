@@ -39,7 +39,7 @@ app.get('/api-docs.json', (req, res) => {
 });
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   explorer: true,
-  customSiteTitle: 'Luminateads API Docs'
+  customSiteTitle: 'Luminate Ads API Docs'
 }));
 
 app.use('/api', routes);

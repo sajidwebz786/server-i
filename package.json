@@ -1,7 +1,7 @@
 {
   "name": "luminateads-backend",
   "version": "1.0.0",
-  "description": "Express + PostgreSQL backend for the Luminateads promotion and referral platform.",
+  "description": "Express + PostgreSQL backend for the Luminate Ads promotion and referral platform.",
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
