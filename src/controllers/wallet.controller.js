@@ -1,6 +1,7 @@
 const { Wallet, Transaction, BankDetail } = require('../models');
 const { ensureWallet } = require('../services/wallet.service');
 const asyncHandler = require('../utils/asyncHandler');
+const ApiError = require('../utils/apiError');
 
 exports.summary = asyncHandler(async (req, res) => {
   const wallet = await ensureWallet(req.user.id);
@@ -21,10 +22,13 @@ exports.transactions = asyncHandler(async (req, res) => {
 });
 
 exports.upsertBank = asyncHandler(async (req, res) => {
-  const [bankDetail] = await BankDetail.findOrCreate({
+  const [bankDetail, created] = await BankDetail.findOrCreate({
     where: { userId: req.user.id },
     defaults: { userId: req.user.id, ...req.body }
   });
+  if (!created) {
+    throw new ApiError(403, 'Bank details are locked after first submission. Please contact admin for changes.');
+  }
   await bankDetail.update(req.body);
   res.json({ bankDetail });
 });

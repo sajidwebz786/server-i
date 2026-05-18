@@ -41,6 +41,7 @@ router.get('/dashboard', controller.dashboard);
  */
 router.get('/users', controller.users);
 router.put('/users/:id', validate(schemas.updateUser), controller.updateUser);
+router.delete('/users/:id', controller.deleteUser);
 router.put('/users/:id/reset-password', validate(schemas.resetPassword), controller.resetPassword);
 /**
  * @swagger

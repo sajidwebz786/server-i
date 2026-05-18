@@ -4,9 +4,9 @@ const options = {
   definition: {
     openapi: '3.0.3',
     info: {
-      title: 'Illuminate Promotion Platform API',
+      title: 'Luminateads Promotion Platform API',
       version: '1.0.0',
-      description: 'Backend APIs for the mobile-first advertising, referral, task, wallet, withdrawal, and admin platform.'
+      description: 'Backend APIs for the Luminateads advertising, referral hierarchy, task, wallet, withdrawal, and admin platform.'
     },
     servers: [
       {
@@ -52,9 +52,7 @@ const options = {
             name: { type: 'string', example: 'Rahul Sharma' },
             email: { type: 'string', format: 'email', example: 'rahul@example.com' },
             mobile: { type: 'string', example: '9876543210' },
-            password: { type: 'string', example: 'Password@123' },
-            referralCode: { type: 'string', nullable: true, example: 'RAHUABC123' },
-            packageId: { type: 'string', format: 'uuid', nullable: true }
+            password: { type: 'string', example: 'Password@123' }
           }
         },
         LoginRequest: {

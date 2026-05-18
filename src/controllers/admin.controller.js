@@ -99,6 +99,13 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   res.json({ message: 'Password reset successfully' });
 });
 
+exports.deleteUser = asyncHandler(async (req, res) => {
+  const user = await User.findByPk(req.params.id);
+  if (!user || user.role !== 'user') throw new ApiError(404, 'User not found');
+  await user.update({ status: 'blocked' });
+  res.json({ message: 'User access removed successfully', user });
+});
+
 exports.reports = asyncHandler(async (req, res) => {
   const incomeByType = await Income.findAll({
     attributes: ['type', [fn('SUM', col('amount')), 'total']],

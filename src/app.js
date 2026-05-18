@@ -31,7 +31,7 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 500 }));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'illuminate-api' });
+  res.json({ status: 'ok', service: 'luminateads-api' });
 });
 
 app.get('/api-docs.json', (req, res) => {
@@ -39,7 +39,7 @@ app.get('/api-docs.json', (req, res) => {
 });
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   explorer: true,
-  customSiteTitle: 'Illuminate API Docs'
+  customSiteTitle: 'Luminateads API Docs'
 }));
 
 app.use('/api', routes);
