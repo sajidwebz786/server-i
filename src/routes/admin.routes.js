@@ -85,6 +85,7 @@ router.get('/reports', controller.reports);
 router.get('/banners', controller.banners);
 router.post('/banners', uploader('banners').single('image'), validate(schemas.banner), controller.createBanner);
 router.put('/banners/:id', uploader('banners').single('image'), validate(schemas.bannerUpdate), controller.updateBanner);
+router.delete('/banners/:id', controller.deleteBanner);
 
 /**
  * @swagger

@@ -27,6 +27,13 @@ exports.update = asyncHandler(async (req, res) => {
   res.json({ task });
 });
 
+exports.remove = asyncHandler(async (req, res) => {
+  const task = await Task.findByPk(req.params.id);
+  if (!task) throw new ApiError(404, 'Task not found');
+  await task.destroy();
+  res.status(204).send();
+});
+
 exports.submit = asyncHandler(async (req, res) => {
   const task = await Task.findByPk(req.params.id);
   if (!task || task.status !== 'active') throw new ApiError(404, 'Active task not found');

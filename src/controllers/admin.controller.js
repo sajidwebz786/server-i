@@ -137,6 +137,13 @@ exports.updateBanner = asyncHandler(async (req, res) => {
   res.json({ banner });
 });
 
+exports.deleteBanner = asyncHandler(async (req, res) => {
+  const banner = await Banner.findByPk(req.params.id);
+  if (!banner) throw new ApiError(404, 'Banner not found');
+  await banner.destroy();
+  res.status(204).send();
+});
+
 exports.banners = asyncHandler(async (req, res) => {
   const banners = await Banner.findAll({ order: [['createdAt', 'DESC']] });
   res.json({ banners });
