@@ -2,7 +2,21 @@ const { Package, IncomeSetting } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
 
+const defaultPackages = [
+  { name: '1K Package', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 0, freeBannerCount: 0, status: 'active' },
+  { name: '2K Package', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 0, freeBannerCount: 0, status: 'active' },
+  { name: '3K Package', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 0, freeBannerCount: 0, status: 'active' }
+];
+
+async function ensureDefaultPackages() {
+  for (const item of defaultPackages) {
+    const [record] = await Package.findOrCreate({ where: { name: item.name }, defaults: item });
+    if (record.status !== 'active') await record.update({ status: 'active' });
+  }
+}
+
 exports.list = asyncHandler(async (req, res) => {
+  await ensureDefaultPackages();
   const where = req.user && req.user.role === 'admin' ? {} : { status: 'active' };
   const packages = await Package.findAll({
     where,
