@@ -4,14 +4,15 @@ const { makeReferralCode } = require('../utils/referralCode');
 
 async function seedDefaults() {
   const packages = [
-    { name: '1K Package', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 0, freeBannerCount: 0 },
-    { name: '2K Package', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 0, freeBannerCount: 0 },
-    { name: '3K Package', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 0, freeBannerCount: 0 }
+    { name: '1K Package', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 0, freeBannerCount: 1 },
+    { name: '2K Package', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 0, freeBannerCount: 2 },
+    { name: '3K Package', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 0, freeBannerCount: 3 }
   ];
 
   const createdPackages = [];
   for (const item of packages) {
     const [record] = await Package.findOrCreate({ where: { name: item.name }, defaults: item });
+    if (Number(record.freeBannerCount || 0) !== item.freeBannerCount) await record.update({ freeBannerCount: item.freeBannerCount });
     createdPackages.push(record);
   }
 

@@ -3,15 +3,18 @@ const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
 
 const defaultPackages = [
-  { name: '1K Package', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 0, freeBannerCount: 0, status: 'active' },
-  { name: '2K Package', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 0, freeBannerCount: 0, status: 'active' },
-  { name: '3K Package', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 0, freeBannerCount: 0, status: 'active' }
+  { name: '1K Package', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 0, freeBannerCount: 1, status: 'active' },
+  { name: '2K Package', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 0, freeBannerCount: 2, status: 'active' },
+  { name: '3K Package', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 0, freeBannerCount: 3, status: 'active' }
 ];
 
 async function ensureDefaultPackages() {
   for (const item of defaultPackages) {
     const [record] = await Package.findOrCreate({ where: { name: item.name }, defaults: item });
-    if (record.status !== 'active') await record.update({ status: 'active' });
+    const updates = {};
+    if (record.status !== 'active') updates.status = 'active';
+    if (Number(record.freeBannerCount || 0) !== item.freeBannerCount) updates.freeBannerCount = item.freeBannerCount;
+    if (Object.keys(updates).length) await record.update(updates);
   }
 }
 
