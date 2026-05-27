@@ -65,8 +65,10 @@ exports.login = asyncHandler(async (req, res) => {
 exports.sendOtp = asyncHandler(async (req, res) => {
   const { target, channel = 'mobile', purpose = 'login' } = req.body;
   const user = await User.findOne({ where: channel === 'email' ? { email: target } : { mobile: target } });
-  await createOtp({ userId: user ? user.id : null, channel, target, purpose });
-  res.json({ message: 'OTP sent successfully' });
+  const otp = await createOtp({ userId: user ? user.id : null, channel, target, purpose });
+  const payload = { message: 'OTP generated successfully' };
+  if (env.nodeEnv !== 'production') payload.otp = otp.code;
+  res.json(payload);
 });
 
 exports.verifyOtp = asyncHandler(async (req, res) => {

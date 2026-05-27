@@ -12,8 +12,7 @@ async function createOtp({ userId, channel, target, purpose }, options = {}) {
 
   const otp = await Otp.create({ userId, channel, target, purpose, code, expiresAt }, options);
 
-  // Replace this stub with SMS, WhatsApp, or email provider integration.
-  console.log(`OTP for ${target}: ${code}`);
+  if (env.nodeEnv !== 'production') console.log(`OTP for ${target}: ${code}`);
   return otp;
 }
 
