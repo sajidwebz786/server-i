@@ -37,9 +37,9 @@ async function findDuplicateUser({ email, mobile, excludeUserId }) {
 }
 
 function duplicateMessage(existing, email, mobile) {
-  if (email && existing.email === normalizeEmail(email)) return 'This email is already registered. Please login instead.';
-  if (mobile && existing.mobile === normalizeMobile(mobile)) return 'This mobile number is already registered. Please login instead.';
-  return 'This account is already registered. Please login instead.';
+  if (email && existing.email === normalizeEmail(email)) return 'User email already exists in our database. Please login instead.';
+  if (mobile && existing.mobile === normalizeMobile(mobile)) return 'User phone number already exists in our database. Please login instead.';
+  return 'User email or phone number already exists in our database. Please login instead.';
 }
 
 exports.register = asyncHandler(async (req, res) => {
@@ -75,7 +75,7 @@ exports.register = asyncHandler(async (req, res) => {
     return created;
   });
 
-  res.status(201).json({ user: publicUser(user), token: tokenFor(user) });
+  res.status(201).json({ user: publicUser(user), token: tokenFor(user), requiresProfile: true });
 });
 
 exports.login = asyncHandler(async (req, res) => {
@@ -90,7 +90,7 @@ exports.login = asyncHandler(async (req, res) => {
   if (user.status === 'blocked') throw new ApiError(403, 'Account is blocked');
 
   await user.update({ lastLoginAt: new Date() });
-  res.json({ user: publicUser(user), token: tokenFor(user) });
+  res.json({ user: publicUser(user), token: tokenFor(user), requiresProfile: false });
 });
 
 exports.sendOtp = asyncHandler(async (req, res) => {
@@ -98,8 +98,7 @@ exports.sendOtp = asyncHandler(async (req, res) => {
   const normalizedTarget = channel === 'email' ? normalizeEmail(target) : normalizeMobile(target);
   const user = await User.findOne({ where: channel === 'email' ? { email: normalizedTarget } : { mobile: normalizedTarget } });
   const otp = await createOtp({ userId: user ? user.id : null, channel, target: normalizedTarget, purpose });
-  const payload = { message: 'OTP generated successfully' };
-  if (env.nodeEnv !== 'production') payload.otp = otp.code;
+  const payload = { message: 'OTP sent successfully', otp: otp.code };
   res.json(payload);
 });
 
@@ -110,14 +109,14 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
   if (!otp) throw new ApiError(400, 'Invalid or expired OTP');
 
   const user = otp.userId ? await User.findByPk(otp.userId) : await User.findOne({ where: channel === 'email' ? { email: normalizedTarget } : { mobile: normalizedTarget } });
-  if (!user) return res.json({ message: 'OTP verified' });
+  if (!user) return res.json({ message: 'OTP verified', requiresProfile: true });
 
   const patch = {};
   if (otp.channel === 'mobile' || otp.channel === 'whatsapp') patch.isMobileVerified = true;
   if (otp.channel === 'email') patch.isEmailVerified = true;
   await user.update(patch);
 
-  res.json({ message: 'OTP verified', user, token: tokenFor(user) });
+  res.json({ message: 'OTP verified', user: publicUser(user), token: tokenFor(user), requiresProfile: false });
 });
 
 exports.profile = asyncHandler(async (req, res) => {
@@ -144,7 +143,7 @@ exports.updateProfile = asyncHandler(async (req, res) => {
   if (duplicate) throw new ApiError(409, duplicateMessage(duplicate, patch.email, patch.mobile));
 
   await req.user.update(patch);
-  res.json({ user: req.user });
+  res.json({ user: publicUser(req.user), requiresProfile: false });
 });
 
 exports.availability = asyncHandler(async (req, res) => {

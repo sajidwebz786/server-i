@@ -22,6 +22,10 @@ const User = sequelize.define('User', {
   lastLoginAt: { type: DataTypes.DATE, allowNull: true }
 }, {
   hooks: {
+    beforeValidate: (user) => {
+      if (user.email) user.email = String(user.email).trim().toLowerCase();
+      if (user.mobile) user.mobile = String(user.mobile).replace(/\D/g, '');
+    },
     beforeCreate: async (user) => {
       user.password = await bcrypt.hash(user.password, 10);
     },

@@ -91,12 +91,12 @@ exports.updateUser = asyncHandler(async (req, res) => {
   if (patch.email !== undefined) {
     patch.email = String(patch.email || '').trim().toLowerCase();
     const duplicate = await User.findOne({ where: { email: patch.email, id: { [Op.ne]: user.id } } });
-    if (duplicate) throw new ApiError(409, 'This email is already registered.');
+    if (duplicate) throw new ApiError(409, 'User email already exists in our database.');
   }
   if (patch.mobile !== undefined) {
     patch.mobile = String(patch.mobile || '').replace(/\D/g, '');
     const duplicate = await User.findOne({ where: { mobile: patch.mobile, id: { [Op.ne]: user.id } } });
-    if (duplicate) throw new ApiError(409, 'This mobile number is already registered.');
+    if (duplicate) throw new ApiError(409, 'User phone number already exists in our database.');
   }
   await user.update(patch);
   res.json({ user });

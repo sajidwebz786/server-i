@@ -8,7 +8,7 @@ function errorHandler(err, req, res, next) {
   const isUniqueError = err.name === 'SequelizeUniqueConstraintError';
   const statusCode = isUniqueError ? 409 : err.statusCode || 500;
   const payload = {
-    message: isUniqueError ? 'This email or mobile number is already registered. Please login instead.' : err.message || 'Internal server error'
+    message: isUniqueError ? 'User email or phone number already exists in our database. Please login instead.' : err.message || 'Internal server error'
   };
 
   if (err.details) payload.details = err.details;
