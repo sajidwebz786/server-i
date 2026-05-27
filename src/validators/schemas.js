@@ -27,6 +27,11 @@ exports.verifyOtp = exports.otp.keys({
   code: Joi.string().min(4).max(8).required()
 });
 
+exports.availability = Joi.object({
+  email: Joi.string().email(),
+  mobile: Joi.string().min(8).max(20)
+}).or('email', 'mobile');
+
 exports.package = Joi.object({
   name: Joi.string().min(2).max(120),
   description: Joi.string().allow('', null),

@@ -88,6 +88,16 @@ exports.updateUser = asyncHandler(async (req, res) => {
   const allowed = ['name', 'email', 'mobile', 'status', 'packageId', 'isMobileVerified', 'isEmailVerified'];
   const patch = {};
   for (const key of allowed) if (req.body[key] !== undefined) patch[key] = req.body[key];
+  if (patch.email !== undefined) {
+    patch.email = String(patch.email || '').trim().toLowerCase();
+    const duplicate = await User.findOne({ where: { email: patch.email, id: { [Op.ne]: user.id } } });
+    if (duplicate) throw new ApiError(409, 'This email is already registered.');
+  }
+  if (patch.mobile !== undefined) {
+    patch.mobile = String(patch.mobile || '').replace(/\D/g, '');
+    const duplicate = await User.findOne({ where: { mobile: patch.mobile, id: { [Op.ne]: user.id } } });
+    if (duplicate) throw new ApiError(409, 'This mobile number is already registered.');
+  }
   await user.update(patch);
   res.json({ user });
 });

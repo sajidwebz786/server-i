@@ -74,6 +74,7 @@ router.post('/send-otp', validate(schemas.otp), controller.sendOtp);
  *         description: OTP verified
  */
 router.post('/verify-otp', validate(schemas.verifyOtp), controller.verifyOtp);
+router.get('/availability', validate(schemas.availability, 'query'), controller.availability);
 /**
  * @swagger
  * /api/auth/profile:

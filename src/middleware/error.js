@@ -5,9 +5,10 @@ function notFound(req, res, next) {
 }
 
 function errorHandler(err, req, res, next) {
-  const statusCode = err.statusCode || 500;
+  const isUniqueError = err.name === 'SequelizeUniqueConstraintError';
+  const statusCode = isUniqueError ? 409 : err.statusCode || 500;
   const payload = {
-    message: err.message || 'Internal server error'
+    message: isUniqueError ? 'This email or mobile number is already registered. Please login instead.' : err.message || 'Internal server error'
   };
 
   if (err.details) payload.details = err.details;
