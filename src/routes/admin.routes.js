@@ -56,6 +56,7 @@ router.put('/users/:id/reset-password', validate(schemas.resetPassword), control
  *         description: Report data
  */
 router.get('/reports', controller.reports);
+router.post('/daily-debits/run', validate(schemas.dailyDebitRun), controller.runDailyDebits);
 
 /**
  * @swagger

@@ -65,6 +65,27 @@ async function reserveWithdrawal(userId, amount, withdrawalId, options = {}) {
   return wallet;
 }
 
+async function debitAdjustment({ userId, amount, remarks, referenceDate }, options = {}) {
+  const transaction = options.transaction;
+  const wallet = await ensureWallet(userId, { transaction });
+  const debitAmount = money(amount);
+  const availableBalance = money(wallet.availableBalance) - debitAmount;
+
+  await wallet.update({ availableBalance }, { transaction });
+  await Transaction.create({
+    userId,
+    walletId: wallet.id,
+    referenceDate: referenceDate || null,
+    type: 'debit',
+    category: 'adjustment',
+    amount: debitAmount,
+    balanceAfter: availableBalance,
+    remarks
+  }, { transaction });
+
+  return wallet;
+}
+
 async function releaseWithdrawal(userId, amount, options = {}) {
   const transaction = options.transaction;
   const wallet = await ensureWallet(userId, { transaction });
@@ -89,6 +110,7 @@ module.exports = {
   money,
   ensureWallet,
   creditIncome,
+  debitAdjustment,
   reserveWithdrawal,
   releaseWithdrawal,
   markWithdrawalPaid

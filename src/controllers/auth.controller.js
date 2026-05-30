@@ -13,6 +13,9 @@ function tokenFor(user) {
 
 function publicUser(user) {
   const plain = user.toJSON ? user.toJSON() : user;
+  if (Object.prototype.hasOwnProperty.call(plain, 'password')) {
+    plain.hasPassword = Boolean(plain.password);
+  }
   delete plain.password;
   return plain;
 }
@@ -43,7 +46,8 @@ function duplicateMessage(existing, email, mobile) {
 }
 
 exports.register = asyncHandler(async (req, res) => {
-  const { name, password, referralCode, packageId } = req.body;
+  const { name, referralCode, packageId } = req.body;
+  const password = req.body.password || null;
   const email = normalizeEmail(req.body.email);
   const mobile = normalizeMobile(req.body.mobile);
 
@@ -108,7 +112,9 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
   const otp = await verifyOtp({ target: normalizedTarget, code, purpose });
   if (!otp) throw new ApiError(400, 'Invalid or expired OTP');
 
-  const user = otp.userId ? await User.findByPk(otp.userId) : await User.findOne({ where: channel === 'email' ? { email: normalizedTarget } : { mobile: normalizedTarget } });
+  const user = otp.userId
+    ? await User.scope('withPassword').findByPk(otp.userId)
+    : await User.scope('withPassword').findOne({ where: channel === 'email' ? { email: normalizedTarget } : { mobile: normalizedTarget } });
   if (!user) return res.json({ message: 'OTP verified', requiresProfile: true });
 
   const patch = {};
@@ -120,14 +126,14 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
 });
 
 exports.profile = asyncHandler(async (req, res) => {
-  const user = await User.findByPk(req.user.id, {
+  const user = await User.scope('withPassword').findByPk(req.user.id, {
     include: [
       { model: Package, as: 'package' },
       { association: 'wallet' },
       { association: 'bankDetail' }
     ]
   });
-  res.json({ user });
+  res.json({ user: publicUser(user) });
 });
 
 exports.updateProfile = asyncHandler(async (req, res) => {
@@ -160,7 +166,7 @@ exports.availability = asyncHandler(async (req, res) => {
 
 exports.changePassword = asyncHandler(async (req, res) => {
   const user = await User.scope('withPassword').findByPk(req.user.id);
-  if (!(await user.comparePassword(req.body.currentPassword))) {
+  if (user.password && (!req.body.currentPassword || !(await user.comparePassword(req.body.currentPassword)))) {
     throw new ApiError(400, 'Current password is incorrect');
   }
   await user.update({ password: req.body.newPassword });

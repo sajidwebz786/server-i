@@ -7,6 +7,7 @@ const Transaction = sequelize.define('Transaction', {
   walletId: { type: DataTypes.UUID, allowNull: false },
   incomeId: { type: DataTypes.UUID, allowNull: true },
   withdrawalId: { type: DataTypes.UUID, allowNull: true },
+  referenceDate: { type: DataTypes.DATEONLY, allowNull: true },
   type: { type: DataTypes.ENUM('credit', 'debit'), allowNull: false },
   category: { type: DataTypes.ENUM('referral_income', 'task_income', 'bonus', 'withdrawal', 'refund', 'adjustment'), allowNull: false },
   amount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },

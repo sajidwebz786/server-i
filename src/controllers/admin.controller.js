@@ -15,6 +15,7 @@ const {
 } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
+const { runDailyDebits } = require('../services/dailyDebit.service');
 
 exports.dashboard = asyncHandler(async (req, res) => {
   const [
@@ -130,9 +131,11 @@ exports.reports = asyncHandler(async (req, res) => {
 });
 
 exports.createBanner = asyncHandler(async (req, res) => {
+  const imageUrl = req.file ? `/uploads/banners/${req.file.filename}` : req.body.imageUrl;
+  if (!imageUrl) throw new ApiError(400, 'Banner image is required');
   const banner = await Banner.create({
     ...req.body,
-    imageUrl: req.file ? `/uploads/banners/${req.file.filename}` : req.body.imageUrl
+    imageUrl
   });
   res.status(201).json({ banner });
 });
@@ -176,4 +179,9 @@ exports.broadcast = asyncHandler(async (req, res) => {
     data: req.body.data || null
   });
   res.status(201).json({ notification });
+});
+
+exports.runDailyDebits = asyncHandler(async (req, res) => {
+  const result = await runDailyDebits(req.body.date);
+  res.json(result);
 });

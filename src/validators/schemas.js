@@ -7,7 +7,7 @@ exports.register = Joi.object({
   name: Joi.string().min(2).max(120).required(),
   email: Joi.string().email().required(),
   mobile: Joi.string().min(8).max(20).required(),
-  password: Joi.string().min(6).max(128).required(),
+  password: Joi.string().min(6).max(128).allow('', null),
   referralCode: Joi.string().allow('', null),
   packageId: id.allow(null)
 });
@@ -39,6 +39,10 @@ exports.package = Joi.object({
   taxAmount: Joi.number().precision(2).min(0).default(0),
   finalAmount: Joi.number().precision(2).min(0),
   minAdsRequired: Joi.number().integer().min(0),
+  dailyAdsRequired: Joi.number().integer().min(0),
+  dailyWorkMinutes: Joi.number().integer().min(0),
+  monthlyGenerationAmount: Joi.number().precision(2).min(0),
+  dailyDebitAmount: Joi.number().precision(2).min(0),
   freeBannerCount: Joi.number().integer().min(0),
   status: Joi.string().valid('active', 'inactive')
 }).min(1);
@@ -82,7 +86,8 @@ exports.task = Joi.object({
 exports.createTask = exports.task.fork(['title', 'platform', 'description'], (schema) => schema.required());
 
 exports.taskSubmit = Joi.object({
-  notes: Joi.string().allow('', null)
+  notes: Joi.string().allow('', null),
+  taskDate: Joi.date().iso()
 });
 
 exports.taskApproval = Joi.object({
@@ -134,8 +139,12 @@ exports.profile = Joi.object({
 }).min(1);
 
 exports.changePassword = Joi.object({
-  currentPassword: Joi.string().required(),
+  currentPassword: Joi.string().allow('', null),
   newPassword: Joi.string().min(6).max(128).required()
+});
+
+exports.dailyDebitRun = Joi.object({
+  date: Joi.date().iso()
 });
 
 exports.banner = Joi.object({

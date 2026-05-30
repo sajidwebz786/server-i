@@ -3,19 +3,22 @@ const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
 
 const defaultPackages = [
-  { name: '1K Package', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 0, freeBannerCount: 1, status: 'active' },
-  { name: '2K Package', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 0, freeBannerCount: 2, status: 'active' },
-  { name: '3K Package', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 0, freeBannerCount: 3, status: 'active' }
+  { name: '₹1,000 Plan', baseAmount: 1000, taxAmount: 0, finalAmount: 1000, minAdsRequired: 15, dailyAdsRequired: 15, dailyWorkMinutes: 30, monthlyGenerationAmount: 300, dailyDebitAmount: 10, freeBannerCount: 1, status: 'active' },
+  { name: '₹2,000 Plan', baseAmount: 2000, taxAmount: 0, finalAmount: 2000, minAdsRequired: 30, dailyAdsRequired: 30, dailyWorkMinutes: 60, monthlyGenerationAmount: 500, dailyDebitAmount: 16.67, freeBannerCount: 2, status: 'active' },
+  { name: '₹3,000 Plan', baseAmount: 3000, taxAmount: 0, finalAmount: 3000, minAdsRequired: 60, dailyAdsRequired: 60, dailyWorkMinutes: 120, monthlyGenerationAmount: 700, dailyDebitAmount: 23.33, freeBannerCount: 3, status: 'active' }
 ];
 
 async function ensureDefaultPackages() {
   for (const item of defaultPackages) {
     const [record] = await Package.findOrCreate({ where: { name: item.name }, defaults: item });
     const updates = {};
-    if (record.status !== 'active') updates.status = 'active';
-    if (Number(record.freeBannerCount || 0) !== item.freeBannerCount) updates.freeBannerCount = item.freeBannerCount;
+    for (const key of ['baseAmount', 'taxAmount', 'finalAmount', 'minAdsRequired', 'dailyAdsRequired', 'dailyWorkMinutes', 'monthlyGenerationAmount', 'dailyDebitAmount', 'freeBannerCount']) {
+      if (Number(record[key] || 0) !== Number(item[key] || 0)) updates[key] = item[key];
+    }
+    if (record.status !== item.status) updates.status = item.status;
     if (Object.keys(updates).length) await record.update(updates);
   }
+  await Package.update({ status: 'inactive' }, { where: { name: ['1K Package', '2K Package', '3K Package'] } });
 }
 
 exports.list = asyncHandler(async (req, res) => {

@@ -2,11 +2,19 @@ const { sequelize, Task, UserTask, User, Package, Notification } = require('../m
 const { creditIncome, money } = require('../services/wallet.service');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
+const { Op } = require('sequelize');
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 exports.list = asyncHandler(async (req, res) => {
   const now = new Date();
+  const where = req.user.role === 'admin'
+    ? {}
+    : { status: 'active', [Op.or]: [{ packageId: null }, { packageId: req.user.packageId || null }] };
   const tasks = await Task.findAll({
-    where: req.user.role === 'admin' ? {} : { status: 'active' },
+    where,
     include: [{ model: Package, as: 'package' }],
     order: [['createdAt', 'DESC']]
   });
@@ -37,12 +45,15 @@ exports.remove = asyncHandler(async (req, res) => {
 exports.submit = asyncHandler(async (req, res) => {
   const task = await Task.findByPk(req.params.id);
   if (!task || task.status !== 'active') throw new ApiError(404, 'Active task not found');
+  if (task.packageId && task.packageId !== req.user.packageId) throw new ApiError(403, 'This task is not assigned to your plan');
+  const taskDate = req.body.taskDate ? new Date(req.body.taskDate).toISOString().slice(0, 10) : todayKey();
 
   const [submission, created] = await UserTask.findOrCreate({
-    where: { userId: req.user.id, taskId: task.id },
+    where: { userId: req.user.id, taskId: task.id, taskDate },
     defaults: {
       userId: req.user.id,
       taskId: task.id,
+      taskDate,
       screenshot: req.file ? `/uploads/tasks/${req.file.filename}` : null,
       notes: req.body.notes || null,
       status: 'submitted'
@@ -83,7 +94,7 @@ exports.submissions = asyncHandler(async (req, res) => {
 
 exports.approveSubmission = asyncHandler(async (req, res) => {
   const submission = await UserTask.findByPk(req.params.id, {
-    include: [{ model: Task, as: 'task' }, { model: User, as: 'user' }]
+    include: [{ model: Task, as: 'task' }, { model: User, as: 'user', include: [{ model: Package, as: 'package' }] }]
   });
   if (!submission) throw new ApiError(404, 'Task submission not found');
   if (submission.status === 'approved') throw new ApiError(400, 'Submission is already approved');
@@ -96,7 +107,11 @@ exports.approveSubmission = asyncHandler(async (req, res) => {
       adminRemarks: req.body.adminRemarks || null
     }, { transaction });
 
-    const amount = money(req.body.rewardAmount || submission.task.rewardAmount);
+    const plan = submission.user?.package;
+    const planPerAd = plan && Number(plan.dailyAdsRequired || 0)
+      ? money(Number(plan.monthlyGenerationAmount || 0) / 30 / Number(plan.dailyAdsRequired || 1))
+      : 0;
+    const amount = money(req.body.rewardAmount || submission.task.rewardAmount || planPerAd);
     if (amount > 0) {
       await creditIncome({
         userId: submission.userId,
