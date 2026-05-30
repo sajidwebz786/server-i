@@ -2,9 +2,9 @@ const sequelize = require('../src/config/database');
 const { env } = require('../src/config/env');
 
 const planRows = [
-  { name: '₹1,000 Plan', base: 1000, ads: 15, minutes: 30, monthly: 300, debit: 10, banners: 1 },
-  { name: '₹2,000 Plan', base: 2000, ads: 30, minutes: 60, monthly: 500, debit: 16.67, banners: 2 },
-  { name: '₹3,000 Plan', base: 3000, ads: 60, minutes: 120, monthly: 700, debit: 23.33, banners: 3 }
+  { name: '₹999 Plan', oldName: '₹1,000 Plan', base: 999, oldBase: 1000, tax: 179.82, final: 1178.82, ads: 15, minutes: 30, monthly: 300, debit: 10, banners: 1 },
+  { name: '₹1,999 Plan', oldName: '₹2,000 Plan', base: 1999, oldBase: 2000, tax: 359.82, final: 2358.82, ads: 30, minutes: 60, monthly: 500, debit: 16.67, banners: 2 },
+  { name: '₹2,999 Plan', oldName: '₹3,000 Plan', base: 2999, oldBase: 3000, tax: 539.82, final: 3538.82, ads: 60, minutes: 120, monthly: 700, debit: 23.33, banners: 3 }
 ];
 
 function qi(name) {
@@ -37,8 +37,8 @@ async function applyPackagesSchema(table) {
       SET
         name = :name,
         base_amount = :base,
-        tax_amount = 0,
-        final_amount = :base,
+        tax_amount = :tax,
+        final_amount = :final,
         min_ads_required = :ads,
         daily_ads_required = :ads,
         daily_work_minutes = :minutes,
@@ -47,12 +47,13 @@ async function applyPackagesSchema(table) {
         free_banner_count = :banners,
         status = 'active'
       WHERE name = :name
-         OR base_amount IN (:base, :legacyBase)
+         OR base_amount = :base
     `, {
       replacements: {
         name: plan.name,
         base: plan.base,
-        legacyBase: plan.base - 1,
+        tax: plan.tax,
+        final: plan.final,
         ads: plan.ads,
         minutes: plan.minutes,
         monthly: plan.monthly,
@@ -61,6 +62,13 @@ async function applyPackagesSchema(table) {
       }
     });
   }
+
+  await sequelize.query(`
+    UPDATE ${qi(table)}
+    SET status = 'inactive'
+    WHERE name IN ('1K Package', '2K Package', '3K Package', '₹1,000 Plan', '₹2,000 Plan', '₹3,000 Plan')
+       OR base_amount IN (1000, 2000, 3000);
+  `);
 }
 
 async function dropOldUserTaskUniqueIndexes(table) {
