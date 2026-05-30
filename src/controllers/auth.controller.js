@@ -45,6 +45,17 @@ function duplicateMessage(existing, email, mobile) {
   return 'User email or phone number already exists in our database. Please login instead.';
 }
 
+async function resolveUserTableName() {
+  const [tables] = await sequelize.query(`
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'public' AND lower(table_name) = 'users'
+    ORDER BY CASE WHEN table_name = 'Users' THEN 0 ELSE 1 END
+    LIMIT 1
+  `);
+  return tables[0]?.table_name || 'Users';
+}
+
 exports.register = asyncHandler(async (req, res) => {
   const { name, referralCode, packageId } = req.body;
   const password = req.body.password || null;
@@ -156,8 +167,9 @@ exports.updateProfilePhoto = asyncHandler(async (req, res) => {
   if (!req.file) throw new ApiError(400, 'Profile photo is required');
   const avatarUrl = `/uploads/profiles/${req.file.filename}`;
   try {
+    const quotedUserTable = sequelize.getQueryInterface().quoteIdentifier(await resolveUserTableName());
     await sequelize.query(
-      'UPDATE "Users" SET "avatar_url" = :avatarUrl WHERE "id" = :userId',
+      `UPDATE ${quotedUserTable} SET "avatar_url" = :avatarUrl WHERE "id" = :userId`,
       { replacements: { avatarUrl, userId: req.user.id } }
     );
   } catch (error) {

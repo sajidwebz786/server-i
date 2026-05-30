@@ -8,6 +8,7 @@
     "start": "node server.js",
     "db:init": "node scripts/initDb.js",
     "db:reset": "node scripts/resetDb.js",
+    "db:add-avatar-url": "node scripts/addAvatarUrlColumn.js",
     "check": "node --check server.js"
   },
   "keywords": [
