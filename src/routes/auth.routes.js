@@ -2,6 +2,7 @@ const router = require('express').Router();
 const controller = require('../controllers/auth.controller');
 const validate = require('../middleware/validate');
 const { auth } = require('../middleware/auth');
+const { uploader } = require('../middleware/upload');
 const schemas = require('../validators/schemas');
 
 /**
@@ -109,6 +110,7 @@ router.get('/availability', validate(schemas.availability, 'query'), controller.
  */
 router.get('/profile', auth, controller.profile);
 router.put('/profile', auth, validate(schemas.profile), controller.updateProfile);
+router.put('/profile/photo', auth, uploader('profiles').single('photo'), controller.updateProfilePhoto);
 /**
  * @swagger
  * /api/auth/change-password:

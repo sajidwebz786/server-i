@@ -149,7 +149,15 @@ exports.updateProfile = asyncHandler(async (req, res) => {
   if (duplicate) throw new ApiError(409, duplicateMessage(duplicate, patch.email, patch.mobile));
 
   await req.user.update(patch);
-  res.json({ user: publicUser(req.user), requiresProfile: false });
+  const updatedUser = await User.scope('withPassword').findByPk(req.user.id);
+  res.json({ user: publicUser(updatedUser), requiresProfile: false });
+});
+
+exports.updateProfilePhoto = asyncHandler(async (req, res) => {
+  if (!req.file) throw new ApiError(400, 'Profile photo is required');
+  await req.user.update({ avatarUrl: `/uploads/profiles/${req.file.filename}` });
+  const updatedUser = await User.scope('withPassword').findByPk(req.user.id);
+  res.json({ user: publicUser(updatedUser), requiresProfile: false });
 });
 
 exports.availability = asyncHandler(async (req, res) => {
