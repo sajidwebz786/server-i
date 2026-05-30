@@ -9,6 +9,7 @@
     "db:init": "node scripts/initDb.js",
     "db:reset": "node scripts/resetDb.js",
     "db:add-avatar-url": "node scripts/addAvatarUrlColumn.js",
+    "db:apply-ad-plan-schema": "node scripts/applyAdPlanSchema.js",
     "check": "node --check server.js"
   },
   "keywords": [
