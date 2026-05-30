@@ -149,15 +149,24 @@ exports.updateProfile = asyncHandler(async (req, res) => {
   if (duplicate) throw new ApiError(409, duplicateMessage(duplicate, patch.email, patch.mobile));
 
   await req.user.update(patch);
-  const updatedUser = await User.scope('withPassword').findByPk(req.user.id);
-  res.json({ user: publicUser(updatedUser), requiresProfile: false });
+  res.json({ user: publicUser(req.user), requiresProfile: false });
 });
 
 exports.updateProfilePhoto = asyncHandler(async (req, res) => {
   if (!req.file) throw new ApiError(400, 'Profile photo is required');
-  await req.user.update({ avatarUrl: `/uploads/profiles/${req.file.filename}` });
-  const updatedUser = await User.scope('withPassword').findByPk(req.user.id);
-  res.json({ user: publicUser(updatedUser), requiresProfile: false });
+  const avatarUrl = `/uploads/profiles/${req.file.filename}`;
+  try {
+    await sequelize.query(
+      'UPDATE "Users" SET "avatar_url" = :avatarUrl WHERE "id" = :userId',
+      { replacements: { avatarUrl, userId: req.user.id } }
+    );
+  } catch (error) {
+    if (error?.parent?.code === '42703') {
+      throw new ApiError(500, 'Profile photo storage needs the avatar_url database column. Please run the production DB migration.');
+    }
+    throw error;
+  }
+  res.json({ user: { ...publicUser(req.user), avatarUrl }, requiresProfile: false });
 });
 
 exports.availability = asyncHandler(async (req, res) => {
