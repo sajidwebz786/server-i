@@ -10,14 +10,13 @@ function todayKey() {
 
 exports.list = asyncHandler(async (req, res) => {
   const now = new Date();
-  const where = req.user.role === 'admin'
-    ? {}
-    : { status: 'active', [Op.or]: [{ packageId: null }, { packageId: req.user.packageId || null }] };
+  const where = req.user.role === 'admin' ? {} : { status: 'active' };
   const tasks = await Task.findAll({
     where,
     include: [{ model: Package, as: 'package' }],
     order: [['createdAt', 'DESC']]
   });
+  res.set('Cache-Control', 'no-store');
   res.json({
     tasks: tasks.filter((task) => req.user.role === 'admin' || (!task.endsAt || task.endsAt >= now))
   });
