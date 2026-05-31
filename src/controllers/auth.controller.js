@@ -57,7 +57,7 @@ async function resolveUserTableName() {
 }
 
 exports.register = asyncHandler(async (req, res) => {
-  const { name, referralCode, packageId } = req.body;
+  const { name, referralCode } = req.body;
   const password = req.body.password || null;
   const email = normalizeEmail(req.body.email);
   const mobile = normalizeMobile(req.body.mobile);
@@ -68,11 +68,6 @@ exports.register = asyncHandler(async (req, res) => {
   const sponsor = referralCode ? await User.findOne({ where: { referralCode } }) : null;
   if (referralCode && !sponsor) throw new ApiError(400, 'Invalid referral code');
 
-  if (packageId) {
-    const selectedPackage = await Package.findByPk(packageId);
-    if (!selectedPackage || selectedPackage.status !== 'active') throw new ApiError(400, 'Invalid package selected');
-  }
-
   const user = await sequelize.transaction(async (transaction) => {
     const created = await User.create({
       name,
@@ -81,7 +76,7 @@ exports.register = asyncHandler(async (req, res) => {
       password,
       referralCode: makeReferralCode(name),
       referredById: sponsor ? sponsor.id : null,
-      packageId: packageId || null,
+      packageId: null,
       status: 'pending'
     }, { transaction });
 

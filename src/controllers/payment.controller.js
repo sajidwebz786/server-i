@@ -16,7 +16,6 @@ exports.create = asyncHandler(async (req, res) => {
     screenshot: req.file ? `/uploads/payments/${req.file.filename}` : null
   });
 
-  await req.user.update({ packageId: pkg.id });
   res.status(201).json({ payment });
 });
 
