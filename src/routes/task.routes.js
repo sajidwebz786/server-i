@@ -60,6 +60,7 @@ router.post('/', auth, requireRole('admin'), validate(schemas.createTask), contr
  */
 router.put('/:id', auth, requireRole('admin'), validate(schemas.task), controller.update);
 router.delete('/:id', auth, requireRole('admin'), controller.remove);
+router.put('/:id/progress', auth, validate(schemas.taskProgress), controller.saveProgress);
 router.post('/:id/submit', auth, uploader('tasks').single('screenshot'), validate(schemas.taskSubmit), controller.submit);
 /**
  * @swagger

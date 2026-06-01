@@ -90,6 +90,9 @@ async function dropOldUserTaskUniqueIndexes(table) {
 
 async function applyUserTasksSchema(table) {
   await addColumn(table, 'task_date', 'DATE NOT NULL DEFAULT CURRENT_DATE');
+  await addColumn(table, 'watch_percent', 'INTEGER NOT NULL DEFAULT 0');
+  await addColumn(table, 'watch_seconds', 'INTEGER NOT NULL DEFAULT 0');
+  await addColumn(table, 'watched_at', 'TIMESTAMP WITH TIME ZONE');
   await dropOldUserTaskUniqueIndexes(table);
   await sequelize.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS ${qi(`${table}_user_task_date_unique`)}

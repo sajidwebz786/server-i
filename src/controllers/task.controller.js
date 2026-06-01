@@ -14,16 +14,41 @@ exports.list = asyncHandler(async (req, res) => {
     return res.json({ tasks: [] });
   }
 
+  const now = new Date();
+  const taskDate = todayKey();
   const where = req.user.role === 'admin' ? {} : { status: 'active' };
   const tasks = await Task.findAll({
     where,
-    include: [{ model: Package, as: 'package' }],
+    include: [
+      { model: Package, as: 'package' },
+      ...(req.user.role === 'admin' ? [] : [{
+        model: UserTask,
+        as: 'submissions',
+        required: false,
+        where: { userId: req.user.id, taskDate }
+      }])
+    ],
     order: [['createdAt', 'DESC']]
   });
+  const visibleTasks = tasks
+    .filter((task) => req.user.role === 'admin' || (!task.endsAt || task.endsAt >= now))
+    .map((task) => {
+      const plain = task.toJSON();
+      const progress = plain.submissions?.[0];
+      delete plain.submissions;
+      return {
+        ...plain,
+        progress: progress ? {
+          percent: Number(progress.watchPercent || 0),
+          seconds: Number(progress.watchSeconds || 0),
+          status: progress.status,
+          taskDate: progress.taskDate,
+          updatedAt: progress.updatedAt
+        } : { percent: 0, seconds: 0, status: null, taskDate }
+      };
+    });
   res.set('Cache-Control', 'no-store');
-  res.json({
-    tasks: tasks.filter((task) => req.user.role === 'admin' || (!task.endsAt || task.endsAt >= now))
-  });
+  res.json({ tasks: visibleTasks });
 });
 
 exports.create = asyncHandler(async (req, res) => {
@@ -74,6 +99,48 @@ exports.submit = asyncHandler(async (req, res) => {
   }
 
   res.status(created ? 201 : 200).json({ submission });
+});
+
+exports.saveProgress = asyncHandler(async (req, res) => {
+  const task = await Task.findByPk(req.params.id);
+  if (!task || task.status !== 'active') throw new ApiError(404, 'Active task not found');
+  if (task.packageId && task.packageId !== req.user.packageId) throw new ApiError(403, 'This task is not assigned to your plan');
+
+  const taskDate = req.body.taskDate ? new Date(req.body.taskDate).toISOString().slice(0, 10) : todayKey();
+  const percent = Math.min(100, Math.max(0, Math.round(Number(req.body.percent || 0))));
+  const seconds = Math.max(0, Math.round(Number(req.body.seconds || 0)));
+
+  const [submission] = await UserTask.findOrCreate({
+    where: { userId: req.user.id, taskId: task.id, taskDate },
+    defaults: {
+      userId: req.user.id,
+      taskId: task.id,
+      taskDate,
+      status: 'pending',
+      watchPercent: percent,
+      watchSeconds: seconds,
+      watchedAt: percent > 0 ? new Date() : null
+    }
+  });
+
+  if (submission.watchPercent < percent || submission.watchSeconds < seconds) {
+    await submission.update({
+      watchPercent: Math.max(Number(submission.watchPercent || 0), percent),
+      watchSeconds: Math.max(Number(submission.watchSeconds || 0), seconds),
+      watchedAt: percent > 0 ? new Date() : submission.watchedAt
+    });
+  }
+
+  res.json({
+    progress: {
+      taskId: task.id,
+      taskDate,
+      percent: Number(submission.watchPercent || percent || 0),
+      seconds: Number(submission.watchSeconds || seconds || 0),
+      status: submission.status,
+      updatedAt: submission.updatedAt
+    }
+  });
 });
 
 exports.mySubmissions = asyncHandler(async (req, res) => {

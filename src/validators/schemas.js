@@ -90,6 +90,12 @@ exports.taskSubmit = Joi.object({
   taskDate: Joi.date().iso()
 });
 
+exports.taskProgress = Joi.object({
+  percent: Joi.number().min(0).max(100).required(),
+  seconds: Joi.number().min(0).default(0),
+  taskDate: Joi.date().iso()
+});
+
 exports.taskApproval = Joi.object({
   adminRemarks: Joi.string().allow('', null),
   rewardAmount: Joi.number().precision(2).min(0)
