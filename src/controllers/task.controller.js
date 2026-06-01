@@ -8,6 +8,64 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+async function notifyOnce({ event, title, body, data }) {
+  const existing = await Notification.findOne({
+    where: {
+      type: 'task',
+      data: { [Op.contains]: { event, ...data } }
+    }
+  });
+  if (existing) return existing;
+  return Notification.create({
+    userId: null,
+    title,
+    body,
+    type: 'task',
+    data: { event, ...data }
+  });
+}
+
+async function maybeNotifyTaskCompletion({ req, task, submission, taskDate, previousPercent, percent }) {
+  if (previousPercent >= 100 || percent < 100) return;
+
+  await notifyOnce({
+    event: 'task_completed',
+    title: 'Video task completed',
+    body: `${req.user.name || 'A member'} fully watched "${task.title}".`,
+    data: { userId: req.user.id, taskId: task.id, userTaskId: submission.id, taskDate }
+  });
+
+  const assignedWhere = {
+    status: 'active',
+    [Op.or]: [{ packageId: null }, { packageId: req.user.packageId }]
+  };
+  const requiredCount = await Task.count({ where: assignedWhere });
+  if (!requiredCount) return;
+
+  const completedCount = await UserTask.count({
+    where: {
+      userId: req.user.id,
+      taskDate,
+      watchPercent: { [Op.gte]: 100 }
+    },
+    include: [{
+      model: Task,
+      as: 'task',
+      required: true,
+      where: assignedWhere
+    }]
+  });
+
+  if (completedCount >= requiredCount) {
+    await notifyOnce({
+      event: 'daily_tasks_completed',
+      title: 'Daily tasks completed',
+      body: `${req.user.name || 'A member'} completed all ${requiredCount} video tasks for ${taskDate}.`,
+      data: { userId: req.user.id, taskDate }
+    });
+  }
+}
+
 exports.list = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin' && !req.user.packageId) {
     res.set('Cache-Control', 'no-store');
@@ -16,7 +74,9 @@ exports.list = asyncHandler(async (req, res) => {
 
   const now = new Date();
   const taskDate = todayKey();
-  const where = req.user.role === 'admin' ? {} : { status: 'active' };
+  const where = req.user.role === 'admin'
+    ? {}
+    : { status: 'active', [Op.or]: [{ packageId: null }, { packageId: req.user.packageId }] };
   const tasks = await Task.findAll({
     where,
     include: [
@@ -123,6 +183,7 @@ exports.saveProgress = asyncHandler(async (req, res) => {
     }
   });
 
+  const previousPercent = Number(submission.watchPercent || 0);
   if (submission.watchPercent < percent || submission.watchSeconds < seconds) {
     await submission.update({
       watchPercent: Math.max(Number(submission.watchPercent || 0), percent),
@@ -130,6 +191,7 @@ exports.saveProgress = asyncHandler(async (req, res) => {
       watchedAt: percent > 0 ? new Date() : submission.watchedAt
     });
   }
+  await maybeNotifyTaskCompletion({ req, task, submission, taskDate, previousPercent, percent: Number(submission.watchPercent || percent || 0) });
 
   res.json({
     progress: {
@@ -168,6 +230,7 @@ exports.approveSubmission = asyncHandler(async (req, res) => {
   });
   if (!submission) throw new ApiError(404, 'Task submission not found');
   if (submission.status === 'approved') throw new ApiError(400, 'Submission is already approved');
+  if (Number(submission.watchPercent || 0) < 100) throw new ApiError(400, 'Video is not fully watched yet');
 
   await sequelize.transaction(async (transaction) => {
     await submission.update({
