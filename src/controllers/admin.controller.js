@@ -77,6 +77,7 @@ exports.users = asyncHandler(async (req, res) => {
     where,
     include: [
       { model: Package, as: 'package' },
+      { model: Payment, as: 'payments', include: [{ model: Package, as: 'package' }] },
       { model: Wallet, as: 'wallet' },
       { model: BankDetail, as: 'bankDetail' },
       { model: User, as: 'sponsor' }
