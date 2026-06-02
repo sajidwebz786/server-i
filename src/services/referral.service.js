@@ -3,6 +3,7 @@ const {
   sequelize,
   User,
   Referral,
+  Income,
   IncomeSetting,
   Notification
 } = require('../models');
@@ -14,11 +15,11 @@ async function buildReferralChain(user, packageId, options = {}) {
   const transaction = options.transaction;
   if (!user.referredById) return [];
 
-  const existing = await Referral.findOne({
+  const existingRows = await Referral.findAll({
     where: { childUserId: user.id },
     transaction
   });
-  if (existing) return Referral.findAll({ where: { childUserId: user.id }, transaction });
+  if (existingRows.length) return existingRows;
 
   const rows = [];
   let parentId = user.referredById;
@@ -62,6 +63,21 @@ async function creditReferralIncome({ user, packageRecord, payment }, options = 
 
   const credited = [];
   for (const referral of referrals) {
+    const existingIncome = await Income.findOne({
+      where: {
+        userId: referral.parentUserId,
+        fromUserId: user.id,
+        paymentId: payment.id,
+        type: 'referral',
+        level: referral.level
+      },
+      transaction
+    });
+    if (existingIncome) {
+      credited.push(existingIncome);
+      continue;
+    }
+
     const setting = settingByLevel.get(referral.level);
     const percentage = setting ? money(setting.percentage) : 0;
     if (percentage <= 0) continue;

@@ -1,4 +1,4 @@
-const { sequelize, Task, UserTask, User, Package, Notification } = require('../models');
+const { sequelize, Task, UserTask, User, Package, Payment, Notification } = require('../models');
 const { creditIncome, money } = require('../services/wallet.service');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
@@ -25,20 +25,39 @@ async function notifyOnce({ event, title, body, data }) {
   });
 }
 
+async function approvedPackageIdsForUser(userId, options = {}) {
+  const payments = await Payment.findAll({
+    where: { userId, status: 'approved' },
+    attributes: ['packageId'],
+    transaction: options.transaction
+  });
+  return [...new Set(payments.map((payment) => payment.packageId).filter(Boolean))];
+}
+
+async function taskAccessWhereForUser(user, options = {}) {
+  const packageIds = await approvedPackageIdsForUser(user.id, options);
+  if (!packageIds.length) return null;
+  return { status: 'active', [Op.or]: [{ packageId: null }, { packageId: { [Op.in]: packageIds } }] };
+}
+
+async function userCanAccessTask(user, task, options = {}) {
+  if (!task.packageId) return true;
+  const packageIds = await approvedPackageIdsForUser(user.id, options);
+  return packageIds.includes(task.packageId);
+}
+
 async function maybeNotifyTaskCompletion({ req, task, submission, taskDate, previousPercent, percent }) {
   if (previousPercent >= 100 || percent < 100) return;
 
   await notifyOnce({
     event: 'task_completed',
-    title: 'Video task completed',
-    body: `${req.user.name || 'A member'} fully watched "${task.title}".`,
+    title: 'Task completed',
+    body: `${req.user.name || 'A member'} completed "${task.title}".`,
     data: { userId: req.user.id, taskId: task.id, userTaskId: submission.id, taskDate }
   });
 
-  const assignedWhere = {
-    status: 'active',
-    [Op.or]: [{ packageId: null }, { packageId: req.user.packageId }]
-  };
+  const assignedWhere = await taskAccessWhereForUser(req.user);
+  if (!assignedWhere) return;
   const requiredCount = await Task.count({ where: assignedWhere });
   if (!requiredCount) return;
 
@@ -60,14 +79,15 @@ async function maybeNotifyTaskCompletion({ req, task, submission, taskDate, prev
     await notifyOnce({
       event: 'daily_tasks_completed',
       title: 'Daily tasks completed',
-      body: `${req.user.name || 'A member'} completed all ${requiredCount} video tasks for ${taskDate}.`,
+      body: `${req.user.name || 'A member'} completed all ${requiredCount} tasks for ${taskDate}.`,
       data: { userId: req.user.id, taskDate }
     });
   }
 }
 
 exports.list = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && !req.user.packageId) {
+  const packageIds = req.user.role === 'admin' ? [] : await approvedPackageIdsForUser(req.user.id);
+  if (req.user.role !== 'admin' && !packageIds.length) {
     res.set('Cache-Control', 'no-store');
     return res.json({ tasks: [] });
   }
@@ -76,7 +96,7 @@ exports.list = asyncHandler(async (req, res) => {
   const taskDate = todayKey();
   const where = req.user.role === 'admin'
     ? {}
-    : { status: 'active', [Op.or]: [{ packageId: null }, { packageId: req.user.packageId }] };
+    : { status: 'active', [Op.or]: [{ packageId: null }, { packageId: { [Op.in]: packageIds } }] };
   const tasks = await Task.findAll({
     where,
     include: [
@@ -88,7 +108,11 @@ exports.list = asyncHandler(async (req, res) => {
         where: { userId: req.user.id, taskDate }
       }])
     ],
-    order: [['createdAt', 'DESC']]
+    order: [
+      [{ model: Package, as: 'package' }, 'baseAmount', 'ASC'],
+      ['packageId', 'ASC'],
+      ['createdAt', 'ASC']
+    ]
   });
   const visibleTasks = tasks
     .filter((task) => req.user.role === 'admin' || (!task.endsAt || task.endsAt >= now))
@@ -133,7 +157,7 @@ exports.remove = asyncHandler(async (req, res) => {
 exports.submit = asyncHandler(async (req, res) => {
   const task = await Task.findByPk(req.params.id);
   if (!task || task.status !== 'active') throw new ApiError(404, 'Active task not found');
-  if (task.packageId && task.packageId !== req.user.packageId) throw new ApiError(403, 'This task is not assigned to your plan');
+  if (!(await userCanAccessTask(req.user, task))) throw new ApiError(403, 'This task is not assigned to your approved plans');
   const taskDate = req.body.taskDate ? new Date(req.body.taskDate).toISOString().slice(0, 10) : todayKey();
 
   const [submission, created] = await UserTask.findOrCreate({
@@ -164,7 +188,7 @@ exports.submit = asyncHandler(async (req, res) => {
 exports.saveProgress = asyncHandler(async (req, res) => {
   const task = await Task.findByPk(req.params.id);
   if (!task || task.status !== 'active') throw new ApiError(404, 'Active task not found');
-  if (task.packageId && task.packageId !== req.user.packageId) throw new ApiError(403, 'This task is not assigned to your plan');
+  if (!(await userCanAccessTask(req.user, task))) throw new ApiError(403, 'This task is not assigned to your approved plans');
 
   const taskDate = req.body.taskDate ? new Date(req.body.taskDate).toISOString().slice(0, 10) : todayKey();
   const percent = Math.min(100, Math.max(0, Math.round(Number(req.body.percent || 0))));
@@ -226,11 +250,11 @@ exports.submissions = asyncHandler(async (req, res) => {
 
 exports.approveSubmission = asyncHandler(async (req, res) => {
   const submission = await UserTask.findByPk(req.params.id, {
-    include: [{ model: Task, as: 'task' }, { model: User, as: 'user', include: [{ model: Package, as: 'package' }] }]
+    include: [{ model: Task, as: 'task', include: [{ model: Package, as: 'package' }] }, { model: User, as: 'user', include: [{ model: Package, as: 'package' }] }]
   });
   if (!submission) throw new ApiError(404, 'Task submission not found');
   if (submission.status === 'approved') throw new ApiError(400, 'Submission is already approved');
-  if (Number(submission.watchPercent || 0) < 100) throw new ApiError(400, 'Video is not fully watched yet');
+  if (Number(submission.watchPercent || 0) < 100) throw new ApiError(400, 'Task is not fully completed yet');
 
   await sequelize.transaction(async (transaction) => {
     await submission.update({
@@ -240,7 +264,7 @@ exports.approveSubmission = asyncHandler(async (req, res) => {
       adminRemarks: req.body.adminRemarks || null
     }, { transaction });
 
-    const plan = submission.user?.package;
+    const plan = submission.task?.package || submission.user?.package;
     const planPerAd = plan && Number(plan.dailyAdsRequired || 0)
       ? money(Number(plan.monthlyGenerationAmount || 0) / 30 / Number(plan.dailyAdsRequired || 1))
       : 0;

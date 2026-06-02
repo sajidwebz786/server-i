@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { sequelize, User, Package, Task, UserTask, Transaction } = require('../models');
+const { sequelize, User, Package, Payment, Task, UserTask, Transaction } = require('../models');
 const { debitAdjustment, money } = require('./wallet.service');
 
 function toDateKey(value = new Date()) {
@@ -12,7 +12,7 @@ function yesterdayKey() {
   return toDateKey(date);
 }
 
-async function countCompletedAds(user, dateKey, transaction) {
+async function countCompletedAds(user, packageId, dateKey, transaction) {
   return UserTask.count({
     where: {
       userId: user.id,
@@ -23,20 +23,20 @@ async function countCompletedAds(user, dateKey, transaction) {
       model: Task,
       as: 'task',
       required: true,
-      where: { [Op.or]: [{ packageId: null }, { packageId: user.packageId }] }
+      where: { [Op.or]: [{ packageId: null }, { packageId }] }
     }],
     transaction
   });
 }
 
-async function hasDebit(userId, dateKey, transaction) {
+async function hasDebit(userId, packageName, dateKey, transaction) {
   const existing = await Transaction.findOne({
     where: {
       userId,
       referenceDate: dateKey,
       type: 'debit',
       category: 'adjustment',
-      remarks: { [Op.like]: `Daily ad debit for ${dateKey}%` }
+      remarks: { [Op.like]: `Daily ad debit for ${dateKey} (${packageName})%` }
     },
     transaction
   });
@@ -51,39 +51,50 @@ async function runDailyDebits(targetDate) {
   }
 
   const users = await User.findAll({
-    where: { role: 'user', status: 'active', packageId: { [Op.ne]: null } },
-    include: [{ model: Package, as: 'package', where: { status: 'active' } }]
+    where: { role: 'user', status: 'active' },
+    include: [{
+      model: Payment,
+      as: 'payments',
+      where: { status: 'approved' },
+      include: [{ model: Package, as: 'package', where: { status: 'active' } }]
+    }]
   });
 
   const results = [];
   await sequelize.transaction(async (transaction) => {
     for (const user of users) {
-      const pkg = user.package;
-      const required = Number(pkg.dailyAdsRequired || pkg.minAdsRequired || 0);
-      const debitAmount = money(pkg.dailyDebitAmount);
-      if (!required || !debitAmount) {
-        results.push({ userId: user.id, name: user.name, packageName: pkg.name, status: 'skipped', completedAds: 0, requiredAds: required, debitAmount: 0 });
-        continue;
+      const approvedPackages = new Map();
+      for (const payment of user.payments || []) {
+        if (payment.package) approvedPackages.set(payment.package.id, payment.package);
       }
 
-      const completedAds = await countCompletedAds(user, dateKey, transaction);
-      if (completedAds >= required) {
-        results.push({ userId: user.id, name: user.name, packageName: pkg.name, status: 'completed', completedAds, requiredAds: required, debitAmount: 0 });
-        continue;
-      }
+      for (const pkg of [...approvedPackages.values()].sort((a, b) => Number(a.baseAmount || 0) - Number(b.baseAmount || 0))) {
+        const required = Number(pkg.dailyAdsRequired || pkg.minAdsRequired || 0);
+        const debitAmount = money(pkg.dailyDebitAmount);
+        if (!required || !debitAmount) {
+          results.push({ userId: user.id, name: user.name, packageName: pkg.name, status: 'skipped', completedAds: 0, requiredAds: required, debitAmount: 0 });
+          continue;
+        }
 
-      if (await hasDebit(user.id, dateKey, transaction)) {
-        results.push({ userId: user.id, name: user.name, packageName: pkg.name, status: 'already_debited', completedAds, requiredAds: required, debitAmount: 0 });
-        continue;
-      }
+        const completedAds = await countCompletedAds(user, pkg.id, dateKey, transaction);
+        if (completedAds >= required) {
+          results.push({ userId: user.id, name: user.name, packageName: pkg.name, status: 'completed', completedAds, requiredAds: required, debitAmount: 0 });
+          continue;
+        }
 
-      await debitAdjustment({
-        userId: user.id,
-        amount: debitAmount,
-        referenceDate: dateKey,
-        remarks: `Daily ad debit for ${dateKey}: completed ${completedAds}/${required} ads`
-      }, { transaction });
-      results.push({ userId: user.id, name: user.name, packageName: pkg.name, status: 'debited', completedAds, requiredAds: required, debitAmount });
+        if (await hasDebit(user.id, pkg.name, dateKey, transaction)) {
+          results.push({ userId: user.id, name: user.name, packageName: pkg.name, status: 'already_debited', completedAds, requiredAds: required, debitAmount: 0 });
+          continue;
+        }
+
+        await debitAdjustment({
+          userId: user.id,
+          amount: debitAmount,
+          referenceDate: dateKey,
+          remarks: `Daily ad debit for ${dateKey} (${pkg.name}): completed ${completedAds}/${required} tasks`
+        }, { transaction });
+        results.push({ userId: user.id, name: user.name, packageName: pkg.name, status: 'debited', completedAds, requiredAds: required, debitAmount });
+      }
     }
   });
 
