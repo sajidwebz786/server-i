@@ -9,7 +9,8 @@ const BankDetail = sequelize.define('BankDetail', {
   accountNumber: { type: DataTypes.STRING, allowNull: true },
   ifscCode: { type: DataTypes.STRING, allowNull: true },
   upiId: { type: DataTypes.STRING, allowNull: true },
-  panNumber: { type: DataTypes.STRING, allowNull: true }
+  panNumber: { type: DataTypes.STRING, allowNull: true },
+  aadhaarNumber: { type: DataTypes.STRING, allowNull: true }
 });
 
 module.exports = BankDetail;

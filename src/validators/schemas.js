@@ -107,8 +107,9 @@ exports.bank = Joi.object({
   accountNumber: Joi.string().allow('', null),
   ifscCode: Joi.string().allow('', null),
   upiId: Joi.string().allow('', null),
-  panNumber: Joi.string().allow('', null)
-}).or('accountNumber', 'upiId');
+  panNumber: Joi.string().allow('', null),
+  aadhaarNumber: Joi.string().allow('', null)
+}).min(1);
 
 exports.withdrawal = Joi.object({
   amount: amount.required()

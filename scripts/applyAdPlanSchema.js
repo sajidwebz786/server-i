@@ -100,6 +100,10 @@ async function applyUserTasksSchema(table) {
   `);
 }
 
+async function applyBankDetailsSchema(table) {
+  await addColumn(table, 'aadhaar_number', 'VARCHAR(255)');
+}
+
 async function main() {
   if (!env.dbHost || env.dbHost === 'localhost') {
     console.log('Refusing to run: DB_HOST is not set to a remote database.');
@@ -113,17 +117,20 @@ async function main() {
   const userTasksTable = await findTable(['user_tasks', 'UserTasks']);
   const transactionsTable = await findTable(['transactions', 'Transactions']);
   const usersTable = await findTable(['users', 'Users']);
+  const bankDetailsTable = await findTable(['bank_details', 'BankDetails']);
 
   if (usersTable) await addColumn(usersTable, 'avatar_url', 'VARCHAR(255)');
   if (packagesTable) await applyPackagesSchema(packagesTable);
   if (userTasksTable) await applyUserTasksSchema(userTasksTable);
   if (transactionsTable) await addColumn(transactionsTable, 'reference_date', 'DATE');
+  if (bankDetailsTable) await applyBankDetailsSchema(bankDetailsTable);
 
   console.log('Ad plan schema migration complete.', {
     usersTable,
     packagesTable,
     userTasksTable,
-    transactionsTable
+    transactionsTable,
+    bankDetailsTable
   });
 }
 

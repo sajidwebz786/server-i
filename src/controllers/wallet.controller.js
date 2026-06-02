@@ -26,8 +26,8 @@ exports.upsertBank = asyncHandler(async (req, res) => {
     where: { userId: req.user.id },
     defaults: { userId: req.user.id, ...req.body }
   });
-  if (!created) {
-    throw new ApiError(403, 'Bank details are locked after first submission. Please contact admin for changes.');
+  if (!created && bankDetail.accountNumber && req.body.accountNumber && bankDetail.accountNumber !== req.body.accountNumber) {
+    throw new ApiError(403, 'Bank account number is locked after first submission. Please contact admin for changes.');
   }
   await bankDetail.update(req.body);
   res.json({ bankDetail });
