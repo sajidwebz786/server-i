@@ -90,8 +90,10 @@ exports.register = asyncHandler(async (req, res) => {
 
 exports.login = asyncHandler(async (req, res) => {
   const { identifier, password } = req.body;
+  const cleanedIdentifier = String(identifier || '').trim();
+  const normalizedIdentifier = cleanedIdentifier.includes('@') ? normalizeEmail(cleanedIdentifier) : normalizeMobile(cleanedIdentifier);
   const user = await User.scope('withPassword').findOne({
-    where: identifier.includes('@') ? { email: identifier } : { mobile: identifier }
+    where: cleanedIdentifier.includes('@') ? { email: normalizedIdentifier } : { mobile: normalizedIdentifier }
   });
 
   if (!user || !(await user.comparePassword(password))) {
