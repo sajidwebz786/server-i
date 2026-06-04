@@ -34,19 +34,20 @@ async function seedDefaults() {
     { level: 3, percentage: 3 },
     { level: 4, percentage: 1 },
     { level: 5, percentage: 1 },
-    { level: 6, percentage: 1 },
-    { level: 7, percentage: 1 },
-    { level: 8, percentage: 1 },
-    { level: 9, percentage: 1 },
-    { level: 10, percentage: 1 }
+    { level: 6, percentage: 0.5 },
+    { level: 7, percentage: 0.5 },
+    { level: 8, percentage: 0.25 },
+    { level: 9, percentage: 0.25 },
+    { level: 10, percentage: 0.25 }
   ];
 
   for (const pkg of createdPackages) {
     for (const setting of percentages) {
-      await IncomeSetting.findOrCreate({
+      const [record] = await IncomeSetting.findOrCreate({
         where: { packageId: pkg.id, level: setting.level },
         defaults: { packageId: pkg.id, ...setting }
       });
+      await record.update({ percentage: setting.percentage, status: 'active' });
     }
   }
 
