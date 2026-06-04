@@ -2,9 +2,9 @@ const sequelize = require('../src/config/database');
 const { env } = require('../src/config/env');
 
 const planRows = [
-  { name: '₹999 Plan', oldName: '₹1,000 Plan', base: 999, oldBase: 1000, tax: 125, final: 1124, ads: 15, minutes: 30, monthly: 300, debit: 10, banners: 1 },
-  { name: '₹1,999 Plan', oldName: '₹2,000 Plan', base: 1999, oldBase: 2000, tax: 125, final: 2124, ads: 30, minutes: 60, monthly: 500, debit: 16.67, banners: 2 },
-  { name: '₹2,999 Plan', oldName: '₹3,000 Plan', base: 2999, oldBase: 3000, tax: 125, final: 3124, ads: 60, minutes: 120, monthly: 700, debit: 23.33, banners: 3 }
+  { name: '₹999 Plan', oldName: '₹1,000 Plan', base: 999, oldBase: 1000, tax: 125, final: 1124, ads: 20, minutes: 30, monthly: 300, debit: 10, banners: 1 },
+  { name: '₹1,999 Plan', oldName: '₹2,000 Plan', base: 1999, oldBase: 2000, tax: 125, final: 2124, ads: 40, minutes: 60, monthly: 600, debit: 20, banners: 2 },
+  { name: '₹2,999 Plan', oldName: '₹3,000 Plan', base: 2999, oldBase: 3000, tax: 125, final: 3124, ads: 60, minutes: 120, monthly: 900, debit: 30, banners: 3 }
 ];
 
 function qi(name) {

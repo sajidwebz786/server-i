@@ -3,9 +3,9 @@ const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
 
 const defaultPackages = [
-  { name: '₹999 Plan', oldName: '₹1,000 Plan', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 15, dailyAdsRequired: 15, dailyWorkMinutes: 30, monthlyGenerationAmount: 300, dailyDebitAmount: 10, freeBannerCount: 1, status: 'active' },
-  { name: '₹1,999 Plan', oldName: '₹2,000 Plan', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 30, dailyAdsRequired: 30, dailyWorkMinutes: 60, monthlyGenerationAmount: 500, dailyDebitAmount: 16.67, freeBannerCount: 2, status: 'active' },
-  { name: '₹2,999 Plan', oldName: '₹3,000 Plan', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 60, dailyAdsRequired: 60, dailyWorkMinutes: 120, monthlyGenerationAmount: 700, dailyDebitAmount: 23.33, freeBannerCount: 3, status: 'active' }
+  { name: '₹999 Plan', oldName: '₹1,000 Plan', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 20, dailyAdsRequired: 20, dailyWorkMinutes: 30, monthlyGenerationAmount: 300, dailyDebitAmount: 10, freeBannerCount: 1, status: 'active' },
+  { name: '₹1,999 Plan', oldName: '₹2,000 Plan', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 40, dailyAdsRequired: 40, dailyWorkMinutes: 60, monthlyGenerationAmount: 600, dailyDebitAmount: 20, freeBannerCount: 2, status: 'active' },
+  { name: '₹2,999 Plan', oldName: '₹3,000 Plan', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 60, dailyAdsRequired: 60, dailyWorkMinutes: 120, monthlyGenerationAmount: 900, dailyDebitAmount: 30, freeBannerCount: 3, status: 'active' }
 ];
 
 async function ensureDefaultPackages() {
@@ -61,8 +61,8 @@ exports.setStatus = asyncHandler(async (req, res) => {
 exports.remove = asyncHandler(async (req, res) => {
   const record = await Package.findByPk(req.params.id);
   if (!record) throw new ApiError(404, 'Package not found');
-  await record.destroy();
-  res.status(204).send();
+  await record.update({ status: 'inactive' });
+  res.json({ package: record, message: 'Package deactivated successfully' });
 });
 
 exports.upsertIncomeSettings = asyncHandler(async (req, res) => {

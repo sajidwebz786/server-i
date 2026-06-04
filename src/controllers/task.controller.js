@@ -1,4 +1,4 @@
-const { sequelize, Task, UserTask, User, Package, Payment, Notification } = require('../models');
+const { sequelize, Task, UserTask, User, Package, Payment, Notification, Income } = require('../models');
 const { creditIncome, money } = require('../services/wallet.service');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
@@ -44,6 +44,43 @@ async function userCanAccessTask(user, task, options = {}) {
   if (!task.packageId) return true;
   const packageIds = await approvedPackageIdsForUser(user.id, options);
   return packageIds.includes(task.packageId);
+}
+
+function taskRewardAmount(task) {
+  const plan = task?.package;
+  if (plan && Number(plan.dailyAdsRequired || 0)) {
+    return money(Number(plan.monthlyGenerationAmount || 0) / 30 / Number(plan.dailyAdsRequired || 1));
+  }
+  return 0.5;
+}
+
+async function creditTaskRewardOnce({ submission, task, taskDate }, options = {}) {
+  const transaction = options.transaction;
+  const existing = await Income.findOne({
+    where: { userTaskId: submission.id, type: 'task', status: 'approved' },
+    transaction
+  });
+  if (existing) return { credited: false, amount: Number(existing.amount || 0) };
+
+  const amount = taskRewardAmount(task);
+  if (amount <= 0) return { credited: false, amount: 0 };
+
+  await creditIncome({
+    userId: submission.userId,
+    amount,
+    category: 'task_income',
+    referenceDate: taskDate,
+    remarks: `Task reward: ${task.title}`,
+    incomePayload: {
+      userId: submission.userId,
+      userTaskId: submission.id,
+      type: 'task',
+      amount,
+      status: 'approved',
+      remarks: `Automatically credited for ${taskDate}`
+    }
+  }, { transaction });
+  return { credited: true, amount };
 }
 
 async function maybeNotifyTaskCompletion({ req, task, submission, taskDate, previousPercent, percent }) {
@@ -122,6 +159,7 @@ exports.list = asyncHandler(async (req, res) => {
       delete plain.submissions;
       return {
         ...plain,
+        rewardAmount: taskRewardAmount(task),
         progress: progress ? {
           percent: Number(progress.watchPercent || 0),
           seconds: Number(progress.watchSeconds || 0),
@@ -150,8 +188,8 @@ exports.update = asyncHandler(async (req, res) => {
 exports.remove = asyncHandler(async (req, res) => {
   const task = await Task.findByPk(req.params.id);
   if (!task) throw new ApiError(404, 'Task not found');
-  await task.destroy();
-  res.status(204).send();
+  await task.update({ status: 'inactive' });
+  res.json({ task, message: 'Task deactivated successfully' });
 });
 
 exports.submit = asyncHandler(async (req, res) => {
@@ -186,7 +224,9 @@ exports.submit = asyncHandler(async (req, res) => {
 });
 
 exports.saveProgress = asyncHandler(async (req, res) => {
-  const task = await Task.findByPk(req.params.id);
+  const task = await Task.findByPk(req.params.id, {
+    include: [{ model: Package, as: 'package' }]
+  });
   if (!task || task.status !== 'active') throw new ApiError(404, 'Active task not found');
   if (!(await userCanAccessTask(req.user, task))) throw new ApiError(403, 'This task is not assigned to your approved plans');
 
@@ -212,7 +252,13 @@ exports.saveProgress = asyncHandler(async (req, res) => {
     await submission.update({
       watchPercent: Math.max(Number(submission.watchPercent || 0), percent),
       watchSeconds: Math.max(Number(submission.watchSeconds || 0), seconds),
-      watchedAt: percent > 0 ? new Date() : submission.watchedAt
+      watchedAt: percent > 0 ? new Date() : submission.watchedAt,
+      status: percent >= 100 && submission.status === 'pending' ? 'submitted' : submission.status
+    });
+  }
+  if (Number(submission.watchPercent || percent || 0) >= 100) {
+    await sequelize.transaction(async (transaction) => {
+      await creditTaskRewardOnce({ submission, task, taskDate }, { transaction });
     });
   }
   await maybeNotifyTaskCompletion({ req, task, submission, taskDate, previousPercent, percent: Number(submission.watchPercent || percent || 0) });
@@ -264,26 +310,11 @@ exports.approveSubmission = asyncHandler(async (req, res) => {
       adminRemarks: req.body.adminRemarks || null
     }, { transaction });
 
-    const plan = submission.task?.package || submission.user?.package;
-    const planPerAd = plan && Number(plan.dailyAdsRequired || 0)
-      ? money(Number(plan.monthlyGenerationAmount || 0) / 30 / Number(plan.dailyAdsRequired || 1))
-      : 0;
-    const amount = money(req.body.rewardAmount || submission.task.rewardAmount || planPerAd);
-    if (amount > 0) {
-      await creditIncome({
-        userId: submission.userId,
-        amount,
-        category: 'task_income',
-        remarks: `Task reward: ${submission.task.title}`,
-        incomePayload: {
-          userId: submission.userId,
-          userTaskId: submission.id,
-          type: 'task',
-          amount,
-          status: 'approved'
-        }
-      }, { transaction });
-    }
+    await creditTaskRewardOnce({
+      submission,
+      task: submission.task,
+      taskDate: submission.taskDate
+    }, { transaction });
 
     await Notification.create({
       userId: submission.userId,

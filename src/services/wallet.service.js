@@ -14,7 +14,7 @@ async function ensureWallet(userId, options = {}) {
   return wallet;
 }
 
-async function creditIncome({ userId, amount, category, incomePayload, remarks }, options = {}) {
+async function creditIncome({ userId, amount, category, incomePayload, remarks, referenceDate }, options = {}) {
   const transaction = options.transaction;
   const wallet = await ensureWallet(userId, { transaction });
   const creditAmount = money(amount);
@@ -28,6 +28,7 @@ async function creditIncome({ userId, amount, category, incomePayload, remarks }
     userId,
     walletId: wallet.id,
     incomeId: income.id,
+    referenceDate: referenceDate || null,
     type: 'credit',
     category,
     amount: creditAmount,
