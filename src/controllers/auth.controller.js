@@ -57,7 +57,8 @@ async function resolveUserTableName() {
 }
 
 exports.register = asyncHandler(async (req, res) => {
-  const { name, referralCode } = req.body;
+  const { name } = req.body;
+  const referralCode = String(req.body.referralCode || '').trim();
   const password = req.body.password || null;
   const email = normalizeEmail(req.body.email);
   const mobile = normalizeMobile(req.body.mobile);
@@ -65,7 +66,9 @@ exports.register = asyncHandler(async (req, res) => {
   const duplicate = await findDuplicateUser({ email, mobile });
   if (duplicate) throw new ApiError(409, duplicateMessage(duplicate, email, mobile));
 
-  const sponsor = referralCode ? await User.findOne({ where: { referralCode } }) : null;
+  const sponsor = referralCode
+    ? await User.findOne({ where: { referralCode } })
+    : await User.findOne({ where: { role: 'admin', email: env.adminEmail } }) || await User.findOne({ where: { role: 'admin' } });
   if (referralCode && !sponsor) throw new ApiError(400, 'Invalid referral code');
 
   const user = await sequelize.transaction(async (transaction) => {
