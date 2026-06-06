@@ -14,16 +14,20 @@ const { notFound, errorHandler } = require('./middleware/error');
 const app = express();
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-app.use(cors({
-  origin(origin, callback) {
-    const normalizedOrigin = origin ? origin.replace(/\/+$/, '') : origin;
-    if (!normalizedOrigin || env.clientUrls.includes('*') || env.clientUrls.includes(normalizedOrigin)) {
+const corsOptions = {
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      'https://www.luminateads.com',
+      'https://luminateads.com'
+    ];
+    if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    return callback(new Error(`CORS blocked for origin: ${normalizedOrigin}`));
+    return callback(new Error('CORS blocked: ' + origin));
   },
   credentials: true
-}));
+};
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
