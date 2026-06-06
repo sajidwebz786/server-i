@@ -7,7 +7,7 @@ function normalizeOrigin(url) {
 const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT || 5000),
-  clientUrl: process.env.CLIENT_URL || '*',
+  clientUrl: process.env.CLIENT_URL || 'https://www.luminateads.com,https://luminateads.com',
   clientUrls: (process.env.CLIENT_URL || '*').split(',').map((url) => normalizeOrigin(url.trim())).filter(Boolean),
   dbHost: process.env.DB_HOST || 'localhost',
   dbPort: Number(process.env.DB_PORT || 5432),
