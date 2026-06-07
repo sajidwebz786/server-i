@@ -51,6 +51,17 @@ exports.dashboard = asyncHandler(async (req, res) => {
     totalIncome,
     paidWithdrawals,
     walletLiability,
+  // Recent registrations with details for the registrations report
+  const recentRegistrations = await User.findAll({
+    where: { role: 'user', createdAt: { [Op.gte]: since } },
+    attributes: ['id', 'name', 'email', 'mobile', 'status', 'createdAt', 'referralCode', 'isEmailVerified', 'isMobileVerified'],
+    include: [
+      { model: Package, as: 'package' },
+      { model: Wallet, as: 'wallet' },
+      { model: User, as: 'sponsor' }
+    ],
+    order: [['createdAt', 'DESC']]
+  });
     pendingWithdrawals,
     pendingTaskApprovals,
     openTickets
@@ -87,6 +98,7 @@ exports.dashboard = asyncHandler(async (req, res) => {
       totalIncome: distributed,
       paidWithdrawals: paidOut,
       walletLiability: payableLiability,
+    recentRegistrations,
       profitAmount: money(collected - distributed),
       cashAfterPaidWithdrawals: money(collected - paidOut),
       pendingWithdrawals,
