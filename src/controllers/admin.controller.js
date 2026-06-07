@@ -51,17 +51,6 @@ exports.dashboard = asyncHandler(async (req, res) => {
     totalIncome,
     paidWithdrawals,
     walletLiability,
-  // Recent registrations with details for the registrations report
-  const recentRegistrations = await User.findAll({
-    where: { role: 'user', createdAt: { [Op.gte]: since } },
-    attributes: ['id', 'name', 'email', 'mobile', 'status', 'createdAt', 'referralCode', 'isEmailVerified', 'isMobileVerified'],
-    include: [
-      { model: Package, as: 'package' },
-      { model: Wallet, as: 'wallet' },
-      { model: User, as: 'sponsor' }
-    ],
-    order: [['createdAt', 'DESC']]
-  });
     pendingWithdrawals,
     pendingTaskApprovals,
     openTickets
@@ -98,7 +87,6 @@ exports.dashboard = asyncHandler(async (req, res) => {
       totalIncome: distributed,
       paidWithdrawals: paidOut,
       walletLiability: payableLiability,
-    recentRegistrations,
       profitAmount: money(collected - distributed),
       cashAfterPaidWithdrawals: money(collected - paidOut),
       pendingWithdrawals,
@@ -229,6 +217,17 @@ exports.reports = asyncHandler(async (req, res) => {
   }
   const packagePerformance = [...packageMap.values()].sort((a, b) => b.collectionAmount - a.collectionAmount);
 
+  const recentRegistrations = await User.findAll({
+    where: { role: 'user', createdAt: { [Op.gte]: since } },
+    attributes: ['id', 'name', 'email', 'mobile', 'status', 'createdAt', 'referralCode', 'isEmailVerified', 'isMobileVerified'],
+    include: [
+      { model: Package, as: 'package' },
+      { model: Wallet, as: 'wallet' },
+      { model: User, as: 'sponsor' }
+    ],
+    order: [['createdAt', 'DESC']]
+  });
+
   const transactionRows = transactions.map((tx) => tx.toJSON ? tx.toJSON() : tx);
   const totalCollection = money(packageRows.reduce((sum, payment) => sum + money(payment.amount), 0));
   const totalDistributed = money(await Income.sum('amount', { where: { status: 'approved' } }));
@@ -238,6 +237,7 @@ exports.reports = asyncHandler(async (req, res) => {
     incomeByType,
     withdrawalsByStatus,
     recentTransactions: transactionRows,
+    recentRegistrations,
     profitSnapshot: {
       totalCollection,
       totalDistributed,
