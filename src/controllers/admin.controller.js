@@ -226,7 +226,20 @@ exports.reports = asyncHandler(async (req, res) => {
       { model: User, as: 'sponsor' }
     ],
     order: [['createdAt', 'DESC']]
-  });
+  }).then((users) =>
+    users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      mobile: u.mobile,
+      package: u.package ? u.package.name : null,
+      status: u.status,
+      referralCode: u.referralCode,
+      isEmailVerified: u.isEmailVerified,
+      isMobileVerified: u.isMobileVerified,
+      createdAt: u.createdAt
+    }))
+  );
 
   const transactionRows = transactions.map((tx) => tx.toJSON ? tx.toJSON() : tx);
   const totalCollection = money(packageRows.reduce((sum, payment) => sum + money(payment.amount), 0));
