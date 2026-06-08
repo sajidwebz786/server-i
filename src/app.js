@@ -16,10 +16,7 @@ const app = express();
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 const corsOptions = {
   origin: (origin, callback) => {
-    const allowedOrigins = [
-      'https://www.luminateads.com',
-      'https://luminateads.com'
-    ];
+    const allowedOrigins = env.clientUrls;
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
