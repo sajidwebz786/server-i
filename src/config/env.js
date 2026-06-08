@@ -7,8 +7,8 @@ function normalizeOrigin(url) {
 const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT || 5000),
-  clientUrl: process.env.CLIENT_URL || 'https://www.luminateads.com,https://luminateads.com',
-  clientUrls: (process.env.CLIENT_URL || '*').split(',').map((url) => normalizeOrigin(url.trim())).filter(Boolean),
+  clientUrl: process.env.CLIENT_URL || 'https://www.luminateads.com,https://luminateads.com,https://client-i.onrender.com,http://localhost:5173,http://localhost:4173,http://localhost,http://192.168.1.2',
+  clientUrls: (process.env.CLIENT_URL || 'https://www.luminateads.com,https://luminateads.com,https://client-i.onrender.com,http://localhost:5173,http://localhost:4173,http://localhost,http://192.168.1.2').split(',').map((url) => normalizeOrigin(url.trim())).filter(Boolean),
   dbHost: process.env.DB_HOST || 'localhost',
   dbPort: Number(process.env.DB_PORT || 5432),
   dbName: process.env.DB_NAME || 'luminateadsdb',
