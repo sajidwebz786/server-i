@@ -14,17 +14,30 @@ const { notFound, errorHandler } = require('./middleware/error');
 const app = express();
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+const defaultAllowedOrigins = [
+  'https://www.luminateads.com',
+  'https://luminateads.com',
+  'https://client-i.onrender.com',
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'http://localhost',
+  'http://192.168.1.2'
+];
+
 const corsOptions = {
   origin: (origin, callback) => {
-    const allowedOrigins = env.clientUrls;
-    if (!origin || allowedOrigins.includes(origin)) {
+    const allowedOrigins = [...new Set([...(env.clientUrls || []), ...defaultAllowedOrigins])];
+    const normalizedOrigin = origin ? origin.replace(/\/+$|\s+/g, '') : origin;
+    if (!origin || allowedOrigins.includes(normalizedOrigin)) {
       return callback(null, true);
     }
     return callback(new Error('CORS blocked: ' + origin));
   },
-  credentials: true
+  credentials: true,
+  optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
