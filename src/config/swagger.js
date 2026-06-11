@@ -47,11 +47,12 @@ const options = {
         },
         RegisterRequest: {
           type: 'object',
-          required: ['name', 'email', 'mobile', 'password'],
+          required: ['name', 'email', 'mobile', 'dob', 'password'],
           properties: {
             name: { type: 'string', example: 'Rahul Sharma' },
             email: { type: 'string', format: 'email', example: 'rahul@example.com' },
             mobile: { type: 'string', example: '9876543210' },
+            dob: { type: 'string', format: 'date', example: '2006-05-15' },
             password: { type: 'string', example: 'Password@123' }
           }
         },

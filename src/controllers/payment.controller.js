@@ -6,13 +6,18 @@ const ApiError = require('../utils/apiError');
 exports.create = asyncHandler(async (req, res) => {
   const pkg = await Package.findByPk(req.body.packageId);
   if (!pkg || pkg.status !== 'active') throw new ApiError(400, 'Invalid package selected');
+  const paymentMode = req.body.paymentMode || 'manual';
+  const utrNumber = String(req.body.utrNumber || '').trim();
+  const requiresProof = paymentMode !== 'cash';
+  if (requiresProof && !utrNumber) throw new ApiError(400, 'UTR / transaction number is required');
+  if (requiresProof && !req.file) throw new ApiError(400, 'Payment screenshot is required');
 
   const payment = await Payment.create({
     userId: req.user.id,
     packageId: pkg.id,
     amount: pkg.finalAmount,
-    paymentMode: req.body.paymentMode || 'manual',
-    utrNumber: req.body.utrNumber || null,
+    paymentMode,
+    utrNumber: utrNumber || null,
     screenshot: req.file ? `/uploads/payments/${req.file.filename}` : null
   });
 
@@ -45,6 +50,11 @@ exports.approve = asyncHandler(async (req, res) => {
   if (payment.status === 'approved') throw new ApiError(400, 'Payment is already approved');
 
   await sequelize.transaction(async (transaction) => {
+    const now = new Date();
+    const currentExpiry = payment.user.subscriptionExpiresAt ? new Date(payment.user.subscriptionExpiresAt) : now;
+    const renewalStart = currentExpiry > now ? currentExpiry : now;
+    const nextExpiry = new Date(renewalStart.getTime() + 30 * 24 * 60 * 60 * 1000);
+
     await payment.update({
       status: 'approved',
       approvedById: req.user.id,
@@ -52,15 +62,20 @@ exports.approve = asyncHandler(async (req, res) => {
       adminRemarks: req.body.adminRemarks || null
     }, { transaction });
 
-    await payment.user.update({ status: 'active', packageId: payment.packageId }, { transaction });
+    await payment.user.update({
+      status: 'active',
+      packageId: payment.packageId,
+      subscriptionExpiresAt: nextExpiry
+    }, { transaction });
+
     await buildReferralChain(payment.user, payment.packageId, { transaction });
     await creditReferralIncome({ user: payment.user, packageRecord: payment.package, payment }, { transaction });
     await Notification.create({
       userId: payment.userId,
       title: 'Payment approved',
-      body: 'Your package payment has been approved and your account is active.',
+      body: `Your package payment has been approved. Your subscription is valid until ${nextExpiry.toISOString().split('T')[0]}.`, 
       type: 'payment',
-      data: { paymentId: payment.id }
+      data: { paymentId: payment.id, subscriptionExpiresAt: nextExpiry.toISOString() }
     }, { transaction });
   });
 

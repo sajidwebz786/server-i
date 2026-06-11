@@ -6,7 +6,7 @@ const Notification = sequelize.define('Notification', {
   userId: { type: DataTypes.UUID, allowNull: true },
   title: { type: DataTypes.STRING, allowNull: false },
   body: { type: DataTypes.TEXT, allowNull: false },
-  type: { type: DataTypes.ENUM('task', 'payment', 'withdrawal', 'income', 'support', 'general'), allowNull: false, defaultValue: 'general' },
+  type: { type: DataTypes.ENUM('task', 'payment', 'withdrawal', 'income', 'support', 'renewal', 'general'), allowNull: false, defaultValue: 'general' },
   data: { type: DataTypes.JSONB, allowNull: true },
   readAt: { type: DataTypes.DATE, allowNull: true }
 });

@@ -9,6 +9,7 @@ router.use('/tasks', require('./task.routes'));
 router.use('/wallet', require('./wallet.routes'));
 router.use('/withdrawals', require('./withdrawal.routes'));
 router.use('/support', require('./support.routes'));
+router.use('/notifications', require('./notification.routes'));
 router.use('/admin', require('./admin.routes'));
 
 module.exports = router;

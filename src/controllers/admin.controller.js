@@ -1,17 +1,21 @@
 const { Op, fn, col } = require('sequelize');
 const {
+  sequelize,
   User,
   Package,
   Payment,
   Withdrawal,
   UserTask,
   SupportTicket,
+  SupportReply,
   Income,
   Wallet,
   BankDetail,
   Transaction,
   Banner,
-  Notification
+  Notification,
+  Referral,
+  Otp
 } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
@@ -154,6 +158,64 @@ exports.deleteUser = asyncHandler(async (req, res) => {
   if (!user || user.role !== 'user') throw new ApiError(404, 'User not found');
   await user.update({ status: 'blocked' });
   res.json({ message: 'User access removed successfully', user });
+});
+
+exports.deleteUserPermanent = asyncHandler(async (req, res) => {
+  const user = await User.findByPk(req.params.id);
+  if (!user || user.role !== 'user') throw new ApiError(404, 'User not found');
+
+  await sequelize.transaction(async (transaction) => {
+    const [wallets, incomes, withdrawals, tickets] = await Promise.all([
+      Wallet.findAll({ where: { userId: user.id }, attributes: ['id'], transaction }),
+      Income.findAll({
+        where: { [Op.or]: [{ userId: user.id }, { fromUserId: user.id }] },
+        attributes: ['id'],
+        transaction
+      }),
+      Withdrawal.findAll({ where: { userId: user.id }, attributes: ['id'], transaction }),
+      SupportTicket.findAll({ where: { userId: user.id }, attributes: ['id'], transaction })
+    ]);
+
+    const walletIds = wallets.map((item) => item.id);
+    const incomeIds = incomes.map((item) => item.id);
+    const withdrawalIds = withdrawals.map((item) => item.id);
+    const ticketIds = tickets.map((item) => item.id);
+
+    await Transaction.destroy({
+      where: {
+        [Op.or]: [
+          { userId: user.id },
+          walletIds.length ? { walletId: { [Op.in]: walletIds } } : null,
+          incomeIds.length ? { incomeId: { [Op.in]: incomeIds } } : null,
+          withdrawalIds.length ? { withdrawalId: { [Op.in]: withdrawalIds } } : null
+        ].filter(Boolean)
+      },
+      transaction
+    });
+    await Income.destroy({ where: { [Op.or]: [{ userId: user.id }, { fromUserId: user.id }] }, transaction });
+    await Referral.destroy({ where: { [Op.or]: [{ parentUserId: user.id }, { childUserId: user.id }] }, transaction });
+    await UserTask.destroy({ where: { userId: user.id }, transaction });
+    await Payment.destroy({ where: { userId: user.id }, transaction });
+    await Withdrawal.destroy({ where: { userId: user.id }, transaction });
+    await SupportReply.destroy({
+      where: {
+        [Op.or]: [
+          { userId: user.id },
+          ticketIds.length ? { ticketId: { [Op.in]: ticketIds } } : null
+        ].filter(Boolean)
+      },
+      transaction
+    });
+    await SupportTicket.destroy({ where: { userId: user.id }, transaction });
+    await Notification.destroy({ where: { userId: user.id }, transaction });
+    await Otp.destroy({ where: { userId: user.id }, transaction });
+    await BankDetail.destroy({ where: { userId: user.id }, transaction });
+    await Wallet.destroy({ where: { userId: user.id }, transaction });
+    await User.update({ referredById: null }, { where: { referredById: user.id }, transaction });
+    await user.destroy({ transaction });
+  });
+
+  res.json({ message: 'User deleted permanently' });
 });
 
 exports.reports = asyncHandler(async (req, res) => {

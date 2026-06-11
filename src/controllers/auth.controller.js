@@ -56,15 +56,32 @@ async function resolveUserTableName() {
   return tables[0]?.table_name || 'Users';
 }
 
+function calculateAge(dobValue) {
+  const birth = new Date(dobValue);
+  if (Number.isNaN(birth.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) {
+    age -= 1;
+  }
+  return age;
+}
+
 exports.register = asyncHandler(async (req, res) => {
   const { name } = req.body;
   const referralCode = String(req.body.referralCode || '').trim();
   const password = req.body.password || null;
   const email = normalizeEmail(req.body.email);
   const mobile = normalizeMobile(req.body.mobile);
+  const dob = req.body.dob;
 
   const duplicate = await findDuplicateUser({ email, mobile });
   if (duplicate) throw new ApiError(409, duplicateMessage(duplicate, email, mobile));
+
+  const age = calculateAge(dob);
+  if (age === null || age < 18) {
+    throw new ApiError(422, 'You must be at least 18 years old to register.');
+  }
 
   const sponsor = referralCode
     ? await User.findOne({ where: { referralCode } })
@@ -76,6 +93,7 @@ exports.register = asyncHandler(async (req, res) => {
       name,
       email,
       mobile,
+      dob,
       password,
       referralCode: makeReferralCode(name),
       referredById: sponsor ? sponsor.id : null,

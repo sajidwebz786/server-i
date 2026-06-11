@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const fs = require('fs');
 const swaggerUi = require('swagger-ui-express');
 
 const routes = require('./routes');
@@ -43,6 +44,19 @@ app.use(express.urlencoded({ extended: true }));
 app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 500 }));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+
+// Serve admin portal build at /admin if present
+const adminBuildPath = path.resolve(__dirname, '..', '..', 'admin-portal', 'build');
+if (fs.existsSync(adminBuildPath)) {
+  app.use('/admin', express.static(adminBuildPath));
+  const adminAssetsPath = path.join(adminBuildPath, 'assets');
+  if (fs.existsSync(adminAssetsPath)) {
+    app.use('/assets', express.static(adminAssetsPath));
+  }
+  app.get('/admin/*', (req, res) => {
+    res.sendFile(path.join(adminBuildPath, 'index.html'));
+  });
+}
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'luminateads-api' });

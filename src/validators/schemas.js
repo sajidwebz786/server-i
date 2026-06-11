@@ -7,6 +7,13 @@ exports.register = Joi.object({
   name: Joi.string().min(2).max(120).required(),
   email: Joi.string().email().required(),
   mobile: Joi.string().min(8).max(20).required(),
+  dob: Joi.date().iso().less('now').required().custom((value, helpers) => {
+    const birth = new Date(value);
+    const now = new Date();
+    const age = now.getFullYear() - birth.getFullYear() - (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate()) ? 1 : 0);
+    if (age < 18) return helpers.message('You must be at least 18 years old to register.');
+    return value;
+  }, 'age validation'),
   password: Joi.string().min(6).max(128).allow('', null),
   referralCode: Joi.string().allow('', null),
   packageId: id.allow(null)
@@ -64,7 +71,14 @@ exports.incomeSettings = Joi.object({
 exports.payment = Joi.object({
   packageId: id.required(),
   paymentMode: Joi.string().valid('gateway', 'upi', 'manual', 'cash').default('manual'),
-  utrNumber: Joi.string().allow('', null)
+  utrNumber: Joi.when('paymentMode', {
+    is: 'cash',
+    then: Joi.string().allow('', null),
+    otherwise: Joi.string().trim().min(4).max(120).required().messages({
+      'any.required': 'UTR / transaction number is required',
+      'string.empty': 'UTR / transaction number is required'
+    })
+  })
 });
 
 exports.adminRemarks = Joi.object({
