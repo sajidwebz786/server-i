@@ -188,6 +188,7 @@ exports.notification = Joi.object({
   userId: id.allow(null),
   title: Joi.string().min(2).max(160).required(),
   body: Joi.string().min(1).required(),
-  type: Joi.string().valid('task', 'payment', 'withdrawal', 'income', 'support', 'general').default('general'),
+  type: Joi.string().valid('task', 'payment', 'withdrawal', 'income', 'support', 'renewal', 'general').default('general'),
+  targetScope: Joi.string().valid('all', 'user', 'user_line').default('all'),
   data: Joi.object().allow(null)
 });

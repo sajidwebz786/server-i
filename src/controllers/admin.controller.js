@@ -361,21 +361,68 @@ exports.banners = asyncHandler(async (req, res) => {
 
 exports.notifications = asyncHandler(async (req, res) => {
   const notifications = await Notification.findAll({
-    where: { [Op.or]: [{ userId: req.user.id }, { userId: null }] },
+    include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'mobile'] }],
     order: [['createdAt', 'DESC']]
   });
   res.json({ notifications });
 });
 
+async function collectUserLineIds(rootUserId) {
+  const ids = [];
+  const queue = [rootUserId];
+  const seen = new Set();
+
+  while (queue.length) {
+    const currentId = queue.shift();
+    if (!currentId || seen.has(currentId)) continue;
+    seen.add(currentId);
+    ids.push(currentId);
+
+    const children = await User.findAll({
+      where: { referredById: currentId, role: 'user' },
+      attributes: ['id']
+    });
+    queue.push(...children.map((child) => child.id));
+  }
+
+  return ids;
+}
+
 exports.broadcast = asyncHandler(async (req, res) => {
-  const notification = await Notification.create({
-    userId: req.body.userId || null,
+  const type = req.body.type || 'general';
+  const isGeneral = type === 'general';
+  const targetScope = isGeneral ? 'all' : (req.body.targetScope || 'user_line');
+  const targetUserId = req.body.userId || null;
+
+  if (!isGeneral && !targetUserId) {
+    throw new ApiError(400, 'Select a member for this notification.');
+  }
+
+  if (isGeneral || targetScope === 'all') {
+    const notification = await Notification.create({
+      userId: null,
+      title: req.body.title,
+      body: req.body.body,
+      type,
+      data: req.body.data || null
+    });
+    return res.status(201).json({ notification, count: 1 });
+  }
+
+  const userIds = targetScope === 'user_line'
+    ? await collectUserLineIds(targetUserId)
+    : [targetUserId];
+
+  const payloads = [...new Set(userIds)].map((userId) => ({
+    userId,
     title: req.body.title,
     body: req.body.body,
-    type: req.body.type || 'general',
-    data: req.body.data || null
-  });
-  res.status(201).json({ notification });
+    type,
+    data: { ...(req.body.data || {}), targetScope, targetUserId }
+  }));
+
+  const notifications = await Notification.bulkCreate(payloads);
+  res.status(201).json({ notifications, count: notifications.length });
 });
 
 exports.runDailyDebits = asyncHandler(async (req, res) => {
