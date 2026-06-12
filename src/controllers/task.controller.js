@@ -188,8 +188,25 @@ exports.update = asyncHandler(async (req, res) => {
 exports.remove = asyncHandler(async (req, res) => {
   const task = await Task.findByPk(req.params.id);
   if (!task) throw new ApiError(404, 'Task not found');
-  await task.update({ status: 'inactive' });
-  res.json({ task, message: 'Task deactivated successfully' });
+  await sequelize.transaction(async (transaction) => {
+    const submissions = await UserTask.findAll({
+      where: { taskId: task.id },
+      attributes: ['id'],
+      transaction
+    });
+    const submissionIds = submissions.map((item) => item.id);
+
+    if (submissionIds.length) {
+      await Income.update(
+        { userTaskId: null },
+        { where: { userTaskId: { [Op.in]: submissionIds } }, transaction }
+      );
+      await UserTask.destroy({ where: { id: { [Op.in]: submissionIds } }, transaction });
+    }
+
+    await task.destroy({ transaction });
+  });
+  res.json({ message: 'Task deleted successfully' });
 });
 
 exports.submit = asyncHandler(async (req, res) => {
