@@ -12,6 +12,7 @@
     "db:apply-ad-plan-schema": "node scripts/applyAdPlanSchema.js",
     "db:apply-commission-structure": "node scripts/applyCommissionStructure.js",
     "db:backfill-admin-referrals": "node scripts/backfillAdminReferrals.js",
+    "db:backfill-referral-income": "node scripts/backfillReferralIncome.js",
     "db:clear-unapproved-packages": "node scripts/clearUnapprovedPackages.js",
     "check": "node --check server.js"
   },
