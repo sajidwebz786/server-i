@@ -7,6 +7,48 @@ const {
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
 
+const STATUS_META = {
+  pending: { label: 'Initiated', color: 'orange' },
+  approved: { label: 'Checking / Verification', color: 'blue' },
+  processing: { label: 'Processing for Credit', color: 'red' },
+  paid: { label: 'Credited', color: 'green' },
+  rejected: { label: 'Rejected', color: 'red' }
+};
+
+function timelineEvent(status, updatedBy, remarks) {
+  const meta = STATUS_META[status] || STATUS_META.pending;
+  return {
+    status,
+    label: meta.label,
+    color: meta.color,
+    remarks: remarks || null,
+    updatedBy: updatedBy ? { id: updatedBy.id, name: updatedBy.name || 'Luminate Ads Team' } : null,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function normalizeTimeline(withdrawal) {
+  const existing = Array.isArray(withdrawal.timeline) ? withdrawal.timeline : [];
+  if (existing.length) return existing;
+  return [timelineEvent('pending', null, 'Withdrawal request submitted')];
+}
+
+function presentWithdrawal(withdrawal) {
+  const plain = withdrawal?.toJSON ? withdrawal.toJSON() : withdrawal;
+  const meta = STATUS_META[plain.status] || STATUS_META.pending;
+  return {
+    ...plain,
+    statusLabel: meta.label,
+    statusColor: meta.color,
+    requestDate: plain.createdAt,
+    paymentDate: plain.paidAt,
+    transactionReferenceNumber: plain.transactionNumber,
+    remarks: plain.adminRemarks,
+    approvalHistory: normalizeTimeline(plain),
+    timeline: normalizeTimeline(plain)
+  };
+}
+
 exports.request = asyncHandler(async (req, res) => {
   const bank = await BankDetail.findOne({ where: { userId: req.user.id } });
   if (!bank) throw new ApiError(400, 'Please add bank or UPI details before withdrawal');
@@ -15,14 +57,15 @@ exports.request = asyncHandler(async (req, res) => {
     const created = await Withdrawal.create({
       userId: req.user.id,
       amount: req.body.amount,
-      bankSnapshot: bank.toJSON()
+      bankSnapshot: bank.toJSON(),
+      timeline: [timelineEvent('pending', req.user, 'Withdrawal request submitted')]
     }, { transaction });
 
     await reserveWithdrawal(req.user.id, req.body.amount, created.id, { transaction });
     return created;
   });
 
-  res.status(201).json({ withdrawal });
+  res.status(201).json({ withdrawal: presentWithdrawal(withdrawal) });
 });
 
 exports.myWithdrawals = asyncHandler(async (req, res) => {
@@ -30,7 +73,7 @@ exports.myWithdrawals = asyncHandler(async (req, res) => {
     where: { userId: req.user.id },
     order: [['createdAt', 'DESC']]
   });
-  res.json({ withdrawals });
+  res.json({ withdrawals: withdrawals.map(presentWithdrawal) });
 });
 
 exports.adminList = asyncHandler(async (req, res) => {
@@ -39,7 +82,7 @@ exports.adminList = asyncHandler(async (req, res) => {
     include: [{ model: User, as: 'user', include: [{ model: Wallet, as: 'wallet' }] }],
     order: [['createdAt', 'DESC']]
   });
-  res.json({ withdrawals });
+  res.json({ withdrawals: withdrawals.map(presentWithdrawal) });
 });
 
 exports.approve = asyncHandler(async (req, res) => {
@@ -51,7 +94,8 @@ exports.approve = asyncHandler(async (req, res) => {
     status: 'approved',
     approvedById: req.user.id,
     approvedAt: new Date(),
-    adminRemarks: req.body.adminRemarks || null
+    adminRemarks: req.body.adminRemarks || null,
+    timeline: [...normalizeTimeline(withdrawal), timelineEvent('approved', req.user, req.body.adminRemarks || 'Verification in progress')]
   });
   await Notification.create({
     userId: withdrawal.userId,
@@ -60,7 +104,7 @@ exports.approve = asyncHandler(async (req, res) => {
     type: 'withdrawal',
     data: { withdrawalId: withdrawal.id }
   });
-  res.json({ withdrawal });
+  res.json({ withdrawal: presentWithdrawal(withdrawal) });
 });
 
 exports.reject = asyncHandler(async (req, res) => {
@@ -74,7 +118,8 @@ exports.reject = asyncHandler(async (req, res) => {
     await releaseWithdrawal(withdrawal.userId, withdrawal.amount, { transaction });
     await withdrawal.update({
       status: 'rejected',
-      adminRemarks: req.body.adminRemarks || null
+      adminRemarks: req.body.adminRemarks || null,
+      timeline: [...normalizeTimeline(withdrawal), timelineEvent('rejected', req.user, req.body.adminRemarks || 'Withdrawal request could not be processed')]
     }, { transaction });
   });
 
@@ -85,7 +130,7 @@ exports.reject = asyncHandler(async (req, res) => {
     type: 'withdrawal',
     data: { withdrawalId: withdrawal.id }
   });
-  res.json({ withdrawal });
+  res.json({ withdrawal: presentWithdrawal(withdrawal) });
 });
 
 exports.markPaid = asyncHandler(async (req, res) => {
@@ -95,7 +140,17 @@ exports.markPaid = asyncHandler(async (req, res) => {
 
   await sequelize.transaction(async (transaction) => {
     await markWithdrawalPaid(withdrawal.userId, withdrawal.amount, { transaction });
-    await withdrawal.update({ status: 'paid', paidAt: new Date() }, { transaction });
+    await withdrawal.update({
+      status: 'paid',
+      paidAt: new Date(),
+      transactionNumber: req.body.transactionNumber || req.body.transactionReferenceNumber || withdrawal.transactionNumber,
+      adminRemarks: req.body.adminRemarks || withdrawal.adminRemarks,
+      timeline: [
+        ...normalizeTimeline(withdrawal),
+        timelineEvent('processing', req.user, 'Processing for credit'),
+        timelineEvent('paid', req.user, req.body.adminRemarks || 'Amount credited')
+      ]
+    }, { transaction });
   });
 
   await Notification.create({
@@ -105,5 +160,5 @@ exports.markPaid = asyncHandler(async (req, res) => {
     type: 'withdrawal',
     data: { withdrawalId: withdrawal.id }
   });
-  res.json({ withdrawal });
+  res.json({ withdrawal: presentWithdrawal(withdrawal) });
 });

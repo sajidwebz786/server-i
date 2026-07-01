@@ -6,6 +6,7 @@ const ApiError = require('../utils/apiError');
 const { env } = require('../config/env');
 const { makeReferralCode } = require('../utils/referralCode');
 const { createOtp, verifyOtp } = require('../services/otp.service');
+const { subscriptionSummary } = require('../utils/subscription');
 
 function tokenFor(user) {
   return jwt.sign({ id: user.id, role: user.role }, env.jwtSecret, { expiresIn: env.jwtExpiresIn });
@@ -162,7 +163,7 @@ exports.profile = asyncHandler(async (req, res) => {
       { association: 'bankDetail' }
     ]
   });
-  res.json({ user: publicUser(user) });
+  res.json({ user: publicUser(user), subscription: await subscriptionSummary(user) });
 });
 
 exports.updateProfile = asyncHandler(async (req, res) => {

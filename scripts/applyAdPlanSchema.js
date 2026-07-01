@@ -1,11 +1,8 @@
 const sequelize = require('../src/config/database');
 const { env } = require('../src/config/env');
+const { PLAN_CONFIG, planDefaults } = require('../src/utils/plans');
 
-const planRows = [
-  { name: '₹999 Plan', oldName: '₹1,000 Plan', base: 999, oldBase: 1000, tax: 125, final: 1124, ads: 20, minutes: 30, monthly: 300, debit: 10, banners: 1 },
-  { name: '₹1,999 Plan', oldName: '₹2,000 Plan', base: 1999, oldBase: 2000, tax: 125, final: 2124, ads: 40, minutes: 60, monthly: 600, debit: 20, banners: 2 },
-  { name: '₹2,999 Plan', oldName: '₹3,000 Plan', base: 2999, oldBase: 3000, tax: 125, final: 3124, ads: 60, minutes: 120, monthly: 900, debit: 30, banners: 3 }
-];
+const planRows = PLAN_CONFIG.map((plan) => ({ ...plan, defaults: planDefaults(plan) }));
 
 function qi(name) {
   return sequelize.getQueryInterface().quoteIdentifier(name);
@@ -47,18 +44,21 @@ async function applyPackagesSchema(table) {
         free_banner_count = :banners,
         status = 'active'
       WHERE name = :name
-         OR base_amount = :base
+         OR name = :oldName
+         OR base_amount IN (:base, :oldBase)
     `, {
       replacements: {
         name: plan.name,
-        base: plan.base,
-        tax: plan.tax,
-        final: plan.final,
-        ads: plan.ads,
-        minutes: plan.minutes,
-        monthly: plan.monthly,
-        debit: plan.debit,
-        banners: plan.banners
+        oldName: plan.oldName,
+        base: plan.baseAmount,
+        oldBase: plan.oldName === '₹1,000 Plan' ? 1000 : plan.oldName === '₹2,000 Plan' ? 2000 : 3000,
+        tax: plan.defaults.taxAmount,
+        final: plan.defaults.finalAmount,
+        ads: plan.defaults.dailyAdsRequired,
+        minutes: plan.defaults.dailyWorkMinutes,
+        monthly: plan.defaults.monthlyGenerationAmount,
+        debit: plan.defaults.dailyDebitAmount,
+        banners: plan.defaults.freeBannerCount
       }
     });
   }
@@ -118,19 +118,25 @@ async function main() {
   const transactionsTable = await findTable(['transactions', 'Transactions']);
   const usersTable = await findTable(['users', 'Users']);
   const bankDetailsTable = await findTable(['bank_details', 'BankDetails']);
+  const withdrawalsTable = await findTable(['withdrawals', 'Withdrawals']);
 
   if (usersTable) await addColumn(usersTable, 'avatar_url', 'VARCHAR(255)');
   if (packagesTable) await applyPackagesSchema(packagesTable);
   if (userTasksTable) await applyUserTasksSchema(userTasksTable);
   if (transactionsTable) await addColumn(transactionsTable, 'reference_date', 'DATE');
   if (bankDetailsTable) await applyBankDetailsSchema(bankDetailsTable);
+  if (withdrawalsTable) {
+    await addColumn(withdrawalsTable, 'transaction_number', 'VARCHAR(255)');
+    await addColumn(withdrawalsTable, 'timeline', "JSONB NOT NULL DEFAULT '[]'::jsonb");
+  }
 
   console.log('Ad plan schema migration complete.', {
     usersTable,
     packagesTable,
     userTasksTable,
     transactionsTable,
-    bankDetailsTable
+    bankDetailsTable,
+    withdrawalsTable
   });
 }
 

@@ -2,6 +2,7 @@ const { sequelize, Payment, Package, User, Notification } = require('../models')
 const { creditReferralIncome, buildReferralChain } = require('../services/referral.service');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
+const { withPaymentProof } = require('../utils/files');
 
 exports.create = asyncHandler(async (req, res) => {
   const pkg = await Package.findByPk(req.body.packageId);
@@ -10,7 +11,7 @@ exports.create = asyncHandler(async (req, res) => {
   const utrNumber = String(req.body.utrNumber || '').trim();
   const requiresProof = paymentMode !== 'cash';
   if (requiresProof && !utrNumber) throw new ApiError(400, 'UTR / transaction number is required');
-  if (requiresProof && !req.file) throw new ApiError(400, 'Payment screenshot is required');
+  if (requiresProof && !req.file) throw new ApiError(400, 'Payment proof is required');
 
   const payment = await Payment.create({
     userId: req.user.id,
@@ -21,7 +22,7 @@ exports.create = asyncHandler(async (req, res) => {
     screenshot: req.file ? `/uploads/payments/${req.file.filename}` : null
   });
 
-  res.status(201).json({ payment });
+  res.status(201).json({ payment: withPaymentProof(payment) });
 });
 
 exports.myPayments = asyncHandler(async (req, res) => {
@@ -30,7 +31,7 @@ exports.myPayments = asyncHandler(async (req, res) => {
     include: [{ model: Package, as: 'package' }],
     order: [['createdAt', 'DESC']]
   });
-  res.json({ payments });
+  res.json({ payments: payments.map(withPaymentProof) });
 });
 
 exports.pending = asyncHandler(async (req, res) => {
@@ -39,7 +40,7 @@ exports.pending = asyncHandler(async (req, res) => {
     include: [{ model: User, as: 'user' }, { model: Package, as: 'package' }],
     order: [['createdAt', 'DESC']]
   });
-  res.json({ payments });
+  res.json({ payments: payments.map(withPaymentProof) });
 });
 
 exports.approve = asyncHandler(async (req, res) => {
@@ -79,7 +80,7 @@ exports.approve = asyncHandler(async (req, res) => {
     }, { transaction });
   });
 
-  res.json({ payment: await Payment.findByPk(payment.id) });
+  res.json({ payment: withPaymentProof(await Payment.findByPk(payment.id)) });
 });
 
 exports.reject = asyncHandler(async (req, res) => {
@@ -93,5 +94,5 @@ exports.reject = asyncHandler(async (req, res) => {
     type: 'payment',
     data: { paymentId: payment.id }
   });
-  res.json({ payment });
+  res.json({ payment: withPaymentProof(payment) });
 });

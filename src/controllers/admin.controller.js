@@ -20,6 +20,8 @@ const {
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
 const { runDailyDebits } = require('../services/dailyDebit.service');
+const { subscriptionSummary } = require('../utils/subscription');
+const { buildHistory } = require('./wallet.controller');
 
 function money(value) {
   return Number(Number(value || 0).toFixed(2));
@@ -123,7 +125,11 @@ exports.users = asyncHandler(async (req, res) => {
     ],
     order: [['createdAt', 'DESC']]
   });
-  res.json({ users });
+  const enrichedUsers = await Promise.all(users.map(async (user) => ({
+    ...user.toJSON(),
+    subscription: await subscriptionSummary(user)
+  })));
+  res.json({ users: enrichedUsers });
 });
 
 exports.updateUser = asyncHandler(async (req, res) => {
@@ -327,6 +333,118 @@ exports.reports = asyncHandler(async (req, res) => {
   });
 });
 
+exports.transactions = asyncHandler(async (req, res) => {
+  const createdAt = dateRange(req.query);
+  const userWhere = {};
+  if (req.query.customer) {
+    userWhere[Op.or] = [
+      { name: { [Op.iLike]: `%${req.query.customer}%` } },
+      { email: { [Op.iLike]: `%${req.query.customer}%` } },
+      { mobile: { [Op.iLike]: `%${req.query.customer}%` } }
+    ];
+  }
+  const userInclude = {
+    model: User,
+    as: 'user',
+    attributes: ['id', 'name', 'email', 'mobile'],
+    ...(Object.keys(userWhere).length ? { where: userWhere, required: true } : {})
+  };
+  const commonWhere = createdAt ? { createdAt } : {};
+
+  const [walletTransactions, payments, incomes, withdrawals] = await Promise.all([
+    Transaction.findAll({
+      where: commonWhere,
+      include: [userInclude],
+      order: [['createdAt', 'DESC']],
+      limit: 500
+    }),
+    Payment.findAll({
+      where: {
+        ...commonWhere,
+        ...(req.query.status ? { status: req.query.status } : {})
+      },
+      include: [userInclude, { model: Package, as: 'package' }],
+      order: [['createdAt', 'DESC']],
+      limit: 500
+    }),
+    Income.findAll({
+      where: {
+        ...commonWhere,
+        ...(req.query.status ? { status: req.query.status } : {})
+      },
+      include: [userInclude, { model: Package, as: 'package' }],
+      order: [['createdAt', 'DESC']],
+      limit: 500
+    }),
+    Withdrawal.findAll({
+      where: {
+        ...commonWhere,
+        ...(req.query.status ? { status: req.query.status } : {})
+      },
+      include: [userInclude],
+      order: [['createdAt', 'DESC']],
+      limit: 500
+    })
+  ]);
+
+  const rows = [
+    ...walletTransactions.map((tx) => transactionRow({
+      id: tx.id,
+      user: tx.user,
+      date: tx.createdAt,
+      amount: tx.amount,
+      status: 'completed',
+      transactionType: tx.category,
+      type: tx.type,
+      remarks: tx.remarks,
+      source: 'wallet'
+    })),
+    ...payments.map((payment) => transactionRow({
+      id: payment.id,
+      user: payment.user,
+      plan: payment.package?.name,
+      date: payment.createdAt,
+      amount: payment.amount,
+      status: payment.status,
+      transactionType: 'subscription_payment',
+      type: 'credit',
+      remarks: payment.adminRemarks || payment.utrNumber || 'Subscription payment',
+      source: withPaymentProof(payment)
+    })),
+    ...incomes.map((income) => transactionRow({
+      id: income.id,
+      user: income.user,
+      plan: income.package?.name,
+      date: income.createdAt,
+      amount: income.amount,
+      status: income.status,
+      transactionType: income.type === 'task' ? 'advertisement_earning' : `${income.type}_earning`,
+      type: 'credit',
+      remarks: income.remarks,
+      source: 'income'
+    })),
+    ...withdrawals.map((withdrawal) => transactionRow({
+      id: withdrawal.id,
+      user: withdrawal.user,
+      date: withdrawal.createdAt,
+      amount: withdrawal.amount,
+      status: withdrawal.status,
+      transactionType: 'withdrawal_request',
+      type: 'debit',
+      remarks: withdrawal.adminRemarks || withdrawal.transactionNumber || 'Withdrawal request',
+      source: 'withdrawal'
+    }))
+  ];
+
+  const filtered = rows
+    .filter((row) => !req.query.plan || row.plan === req.query.plan)
+    .filter((row) => !req.query.transactionType || row.transactionType === req.query.transactionType)
+    .filter((row) => !req.query.status || row.status === req.query.status)
+    .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
+
+  res.json({ transactions: filtered });
+});
+
 exports.createBanner = asyncHandler(async (req, res) => {
   const imageUrl = req.file ? `/uploads/banners/${req.file.filename}` : req.body.imageUrl;
   if (!imageUrl) throw new ApiError(400, 'Banner image is required');
@@ -365,6 +483,47 @@ exports.notifications = asyncHandler(async (req, res) => {
     order: [['createdAt', 'DESC']]
   });
   res.json({ notifications });
+});
+
+exports.transactions = asyncHandler(async (req, res) => {
+  const where = { role: 'user' };
+  if (req.query.customer) {
+    where[Op.or] = [
+      { id: req.query.customer },
+      { name: { [Op.iLike]: `%${req.query.customer}%` } },
+      { email: { [Op.iLike]: `%${req.query.customer}%` } },
+      { mobile: { [Op.iLike]: `%${req.query.customer}%` } }
+    ];
+  }
+  if (req.query.plan) where.packageId = req.query.plan;
+
+  const users = await User.findAll({
+    where,
+    include: [{ model: Package, as: 'package' }],
+    order: [['createdAt', 'DESC']]
+  });
+
+  const rows = [];
+  for (const user of users) {
+    const history = await buildHistory(user.id, {
+      from: req.query.from || req.query.dateFrom,
+      to: req.query.to || req.query.dateTo,
+      status: req.query.status,
+      transactionType: req.query.transactionType
+    });
+    rows.push(...history.map((item) => ({
+      ...item,
+      customer: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        mobile: user.mobile
+      },
+      plan: user.package ? { id: user.package.id, name: user.package.name } : null
+    })));
+  }
+
+  res.json({ transactions: rows.sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`)) });
 });
 
 async function collectUserLineIds(rootUserId) {

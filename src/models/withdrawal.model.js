@@ -8,6 +8,8 @@ const Withdrawal = sequelize.define('Withdrawal', {
   bankSnapshot: { type: DataTypes.JSONB, allowNull: false },
   status: { type: DataTypes.ENUM('pending', 'approved', 'rejected', 'paid'), allowNull: false, defaultValue: 'pending' },
   adminRemarks: { type: DataTypes.TEXT, allowNull: true },
+  transactionNumber: { type: DataTypes.STRING, allowNull: true },
+  timeline: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
   approvedById: { type: DataTypes.UUID, allowNull: true },
   approvedAt: { type: DataTypes.DATE, allowNull: true },
   paidAt: { type: DataTypes.DATE, allowNull: true }

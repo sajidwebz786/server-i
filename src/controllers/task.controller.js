@@ -3,6 +3,7 @@ const { creditIncome, money } = require('../services/wallet.service');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
 const { Op } = require('sequelize');
+const { earningPerAdForPackage } = require('../utils/plans');
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -48,9 +49,8 @@ async function userCanAccessTask(user, task, options = {}) {
 
 function taskRewardAmount(task) {
   const plan = task?.package;
-  if (plan && Number(plan.dailyAdsRequired || 0)) {
-    return money(Number(plan.monthlyGenerationAmount || 0) / 30 / Number(plan.dailyAdsRequired || 1));
-  }
+  if (plan) return money(earningPerAdForPackage(plan));
+  if (Number(task?.rewardAmount || 0)) return money(task.rewardAmount);
   return 0.5;
 }
 
@@ -151,7 +151,7 @@ exports.list = asyncHandler(async (req, res) => {
       ['createdAt', 'ASC']
     ]
   });
-  const visibleTasks = tasks
+  let visibleTasks = tasks
     .filter((task) => req.user.role === 'admin' || (!task.endsAt || task.endsAt >= now))
     .map((task) => {
       const plain = task.toJSON();
@@ -169,6 +169,17 @@ exports.list = asyncHandler(async (req, res) => {
         } : { percent: 0, seconds: 0, status: null, taskDate }
       };
     });
+  if (req.user.role !== 'admin') {
+    const assignedCountByPlan = new Map();
+    visibleTasks = visibleTasks.filter((task) => {
+      const key = task.packageId || 'free';
+      const limit = Number(task.package?.dailyAdsRequired || task.package?.minAdsRequired || 20);
+      const current = assignedCountByPlan.get(key) || 0;
+      if (current >= limit) return false;
+      assignedCountByPlan.set(key, current + 1);
+      return true;
+    });
+  }
   res.set('Cache-Control', 'no-store');
   res.json({ tasks: visibleTasks });
 });

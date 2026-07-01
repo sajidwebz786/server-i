@@ -1,25 +1,20 @@
 const { Package, IncomeSetting } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
-
-const defaultPackages = [
-  { name: '₹999 Plan', oldName: '₹1,000 Plan', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 20, dailyAdsRequired: 20, dailyWorkMinutes: 30, monthlyGenerationAmount: 300, dailyDebitAmount: 10, freeBannerCount: 1, status: 'active' },
-  { name: '₹1,999 Plan', oldName: '₹2,000 Plan', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 40, dailyAdsRequired: 40, dailyWorkMinutes: 60, monthlyGenerationAmount: 600, dailyDebitAmount: 20, freeBannerCount: 2, status: 'active' },
-  { name: '₹2,999 Plan', oldName: '₹3,000 Plan', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 60, dailyAdsRequired: 60, dailyWorkMinutes: 120, monthlyGenerationAmount: 900, dailyDebitAmount: 30, freeBannerCount: 3, status: 'active' }
-];
+const { PLAN_CONFIG, planDefaults, earningPerAdForPackage } = require('../utils/plans');
 
 async function ensureDefaultPackages() {
-  for (const item of defaultPackages) {
-    const { oldName, ...defaults } = item;
+  for (const item of PLAN_CONFIG) {
+    const defaults = planDefaults(item);
     const record = await Package.findOne({ where: { name: item.name } })
-      || await Package.findOne({ where: { name: oldName } })
+      || await Package.findOne({ where: { name: item.oldName } })
       || await Package.create(defaults);
     const updates = {};
     if (record.name !== item.name) updates.name = item.name;
     for (const key of ['baseAmount', 'taxAmount', 'finalAmount', 'minAdsRequired', 'dailyAdsRequired', 'dailyWorkMinutes', 'monthlyGenerationAmount', 'dailyDebitAmount', 'freeBannerCount']) {
-      if (Number(record[key] || 0) !== Number(item[key] || 0)) updates[key] = item[key];
+      if (Number(record[key] || 0) !== Number(defaults[key] || 0)) updates[key] = defaults[key];
     }
-    if (record.status !== item.status) updates.status = item.status;
+    if (record.status !== defaults.status) updates.status = defaults.status;
     if (Object.keys(updates).length) await record.update(updates);
   }
   await Package.update(
@@ -36,7 +31,13 @@ exports.list = asyncHandler(async (req, res) => {
     include: [{ model: IncomeSetting, as: 'incomeSettings' }],
     order: [['finalAmount', 'ASC']]
   });
-  res.json({ packages });
+  res.json({
+    packages: packages.map((pkg) => ({
+      ...pkg.toJSON(),
+      totalAdvertisements: Number(pkg.dailyAdsRequired || pkg.minAdsRequired || 0),
+      earningPerAdvertisement: earningPerAdForPackage(pkg)
+    }))
+  });
 });
 
 exports.create = asyncHandler(async (req, res) => {

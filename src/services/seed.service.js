@@ -1,24 +1,19 @@
 const { User, Package, IncomeSetting, Wallet } = require('../models');
 const { env } = require('../config/env');
 const { makeReferralCode } = require('../utils/referralCode');
+const { PLAN_CONFIG, planDefaults } = require('../utils/plans');
 
 async function seedDefaults() {
-  const packages = [
-    { name: '₹999 Plan', oldName: '₹1,000 Plan', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 20, dailyAdsRequired: 20, dailyWorkMinutes: 30, monthlyGenerationAmount: 300, dailyDebitAmount: 10, freeBannerCount: 1 },
-    { name: '₹1,999 Plan', oldName: '₹2,000 Plan', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 40, dailyAdsRequired: 40, dailyWorkMinutes: 60, monthlyGenerationAmount: 600, dailyDebitAmount: 20, freeBannerCount: 2 },
-    { name: '₹2,999 Plan', oldName: '₹3,000 Plan', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 60, dailyAdsRequired: 60, dailyWorkMinutes: 120, monthlyGenerationAmount: 900, dailyDebitAmount: 30, freeBannerCount: 3 }
-  ];
-
   const createdPackages = [];
-  for (const item of packages) {
-    const { oldName, ...defaults } = item;
+  for (const item of PLAN_CONFIG) {
+    const defaults = planDefaults(item);
     const record = await Package.findOne({ where: { name: item.name } })
-      || await Package.findOne({ where: { name: oldName } })
+      || await Package.findOne({ where: { name: item.oldName } })
       || await Package.create(defaults);
     const updates = {};
     if (record.name !== item.name) updates.name = item.name;
     for (const key of Object.keys(defaults)) {
-      if (key !== 'name' && Number(record[key] || 0) !== Number(item[key] || 0)) updates[key] = item[key];
+      if (key !== 'name' && Number(record[key] || 0) !== Number(defaults[key] || 0)) updates[key] = defaults[key];
     }
     if (Object.keys(updates).length) await record.update(updates);
     createdPackages.push(record);
