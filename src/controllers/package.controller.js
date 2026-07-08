@@ -44,6 +44,22 @@ function normalizePackagePayload(body) {
   return payload;
 }
 
+function presentPackage(pkg) {
+  const plain = pkg.toJSON ? pkg.toJSON() : pkg;
+  const totalAdvertisements = Number(plain.totalAdvertisements || plain.dailyAdsRequired || plain.minAdsRequired || 0);
+  const earningPerAdvertisement = earningPerAdForPackage(plain);
+  return {
+    ...plain,
+    minAdsRequired: totalAdvertisements,
+    dailyAdsRequired: totalAdvertisements,
+    totalAdvertisements,
+    earningPerAdvertisement,
+    monthlyGenerationAmount: totalAdvertisements && earningPerAdvertisement
+      ? Number((totalAdvertisements * earningPerAdvertisement * 30).toFixed(2))
+      : Number(plain.monthlyGenerationAmount || 0)
+  };
+}
+
 exports.list = asyncHandler(async (req, res) => {
   await ensureDefaultPackages();
   const where = req.user && req.user.role === 'admin' ? {} : { status: 'active' };
@@ -53,24 +69,20 @@ exports.list = asyncHandler(async (req, res) => {
     order: [['finalAmount', 'ASC']]
   });
   res.json({
-    packages: packages.map((pkg) => ({
-      ...pkg.toJSON(),
-      totalAdvertisements: Number(pkg.dailyAdsRequired || pkg.minAdsRequired || 0),
-      earningPerAdvertisement: earningPerAdForPackage(pkg)
-    }))
+    packages: packages.map(presentPackage)
   });
 });
 
 exports.create = asyncHandler(async (req, res) => {
   const record = await Package.create(normalizePackagePayload(req.body));
-  res.status(201).json({ package: record });
+  res.status(201).json({ package: presentPackage(record) });
 });
 
 exports.update = asyncHandler(async (req, res) => {
   const record = await Package.findByPk(req.params.id);
   if (!record) throw new ApiError(404, 'Package not found');
   await record.update(normalizePackagePayload(req.body));
-  res.json({ package: record });
+  res.json({ package: presentPackage(record) });
 });
 
 exports.setStatus = asyncHandler(async (req, res) => {
