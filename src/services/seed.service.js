@@ -12,8 +12,8 @@ async function seedDefaults() {
       || await Package.create(defaults);
     const updates = {};
     if (record.name !== item.name) updates.name = item.name;
-    for (const key of Object.keys(defaults)) {
-      if (key !== 'name' && Number(record[key] || 0) !== Number(defaults[key] || 0)) updates[key] = defaults[key];
+    for (const key of ['earningPerAdvertisement']) {
+      if (!Number(record[key] || 0)) updates[key] = defaults[key];
     }
     if (Object.keys(updates).length) await record.update(updates);
     createdPackages.push(record);

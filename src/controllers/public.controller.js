@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 const { Banner, Package, Task } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
+const { earningPerAdForPackage } = require('../utils/plans');
 
 exports.home = asyncHandler(async (req, res) => {
   const [banners, packages, latestTasks] = await Promise.all([
@@ -29,7 +30,11 @@ exports.home = asyncHandler(async (req, res) => {
       ]
     },
     banners,
-    packages,
+    packages: packages.map((pkg) => ({
+      ...pkg.toJSON(),
+      totalAdvertisements: Number(pkg.dailyAdsRequired || pkg.minAdsRequired || 0),
+      earningPerAdvertisement: earningPerAdForPackage(pkg)
+    })),
     latestTasks
   });
 });

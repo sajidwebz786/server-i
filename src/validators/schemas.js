@@ -47,6 +47,7 @@ exports.package = Joi.object({
   finalAmount: Joi.number().precision(2).min(0),
   minAdsRequired: Joi.number().integer().min(0),
   dailyAdsRequired: Joi.number().integer().min(0),
+  earningPerAdvertisement: Joi.number().precision(2).min(0),
   dailyWorkMinutes: Joi.number().integer().min(0),
   monthlyGenerationAmount: Joi.number().precision(2).min(0),
   dailyDebitAmount: Joi.number().precision(2).min(0),

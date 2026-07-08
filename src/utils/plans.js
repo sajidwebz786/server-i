@@ -49,6 +49,7 @@ function planDefaults(plan) {
     finalAmount: plan.finalAmount,
     minAdsRequired: plan.totalAdvertisements,
     dailyAdsRequired: plan.totalAdvertisements,
+    earningPerAdvertisement: plan.earningPerAdvertisement,
     dailyWorkMinutes: plan.dailyWorkMinutes,
     monthlyGenerationAmount: monthlyGenerationAmount(plan),
     dailyDebitAmount: plan.dailyDebitAmount,
@@ -58,6 +59,9 @@ function planDefaults(plan) {
 }
 
 function earningPerAdForPackage(pkg) {
+  if (Number(pkg?.earningPerAdvertisement || 0) > 0) {
+    return Number(Number(pkg.earningPerAdvertisement).toFixed(2));
+  }
   const baseAmount = Number(pkg?.baseAmount || 0);
   const configured = PLAN_CONFIG.find((plan) => Number(plan.baseAmount) === baseAmount || plan.name === pkg?.name);
   if (configured) return configured.earningPerAdvertisement;

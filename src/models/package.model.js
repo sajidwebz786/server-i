@@ -10,6 +10,7 @@ const Package = sequelize.define('Package', {
   finalAmount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
   minAdsRequired: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   dailyAdsRequired: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  earningPerAdvertisement: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
   dailyWorkMinutes: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   monthlyGenerationAmount: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
   dailyDebitAmount: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },

@@ -24,6 +24,7 @@ async function addColumn(table, column, definition) {
 
 async function applyPackagesSchema(table) {
   await addColumn(table, 'daily_ads_required', 'INTEGER NOT NULL DEFAULT 0');
+  await addColumn(table, 'earning_per_advertisement', 'NUMERIC(12, 2) NOT NULL DEFAULT 0');
   await addColumn(table, 'daily_work_minutes', 'INTEGER NOT NULL DEFAULT 0');
   await addColumn(table, 'monthly_generation_amount', 'NUMERIC(12, 2) NOT NULL DEFAULT 0');
   await addColumn(table, 'daily_debit_amount', 'NUMERIC(12, 2) NOT NULL DEFAULT 0');
@@ -38,6 +39,7 @@ async function applyPackagesSchema(table) {
         final_amount = :final,
         min_ads_required = :ads,
         daily_ads_required = :ads,
+        earning_per_advertisement = :earning,
         daily_work_minutes = :minutes,
         monthly_generation_amount = :monthly,
         daily_debit_amount = :debit,
@@ -55,6 +57,7 @@ async function applyPackagesSchema(table) {
         tax: plan.defaults.taxAmount,
         final: plan.defaults.finalAmount,
         ads: plan.defaults.dailyAdsRequired,
+        earning: plan.defaults.earningPerAdvertisement,
         minutes: plan.defaults.dailyWorkMinutes,
         monthly: plan.defaults.monthlyGenerationAmount,
         debit: plan.defaults.dailyDebitAmount,
