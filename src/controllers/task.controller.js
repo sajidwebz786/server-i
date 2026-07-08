@@ -35,15 +35,22 @@ async function approvedPackageIdsForUser(userId, options = {}) {
   return [...new Set(payments.map((payment) => payment.packageId).filter(Boolean))];
 }
 
+async function activePackageIdsForUser(user, options = {}) {
+  if (user.packageId && user.status === 'active' && (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) >= new Date())) {
+    return [user.packageId];
+  }
+  return approvedPackageIdsForUser(user.id, options);
+}
+
 async function taskAccessWhereForUser(user, options = {}) {
-  const packageIds = await approvedPackageIdsForUser(user.id, options);
+  const packageIds = await activePackageIdsForUser(user, options);
   if (!packageIds.length) return null;
   return { status: 'active', [Op.or]: [{ packageId: null }, { packageId: { [Op.in]: packageIds } }] };
 }
 
 async function userCanAccessTask(user, task, options = {}) {
   if (!task.packageId) return true;
-  const packageIds = await approvedPackageIdsForUser(user.id, options);
+  const packageIds = await activePackageIdsForUser(user, options);
   return packageIds.includes(task.packageId);
 }
 
@@ -123,7 +130,7 @@ async function maybeNotifyTaskCompletion({ req, task, submission, taskDate, prev
 }
 
 exports.list = asyncHandler(async (req, res) => {
-  const packageIds = req.user.role === 'admin' ? [] : await approvedPackageIdsForUser(req.user.id);
+  const packageIds = req.user.role === 'admin' ? [] : await activePackageIdsForUser(req.user);
   if (req.user.role !== 'admin' && !packageIds.length) {
     res.set('Cache-Control', 'no-store');
     return res.json({ tasks: [] });
@@ -170,13 +177,18 @@ exports.list = asyncHandler(async (req, res) => {
       };
     });
   if (req.user.role !== 'admin') {
-    const assignedCountByPlan = new Map();
+    const seenLinks = new Set();
+    const activePlan = req.user.packageId
+      ? visibleTasks.find((task) => task.packageId === req.user.packageId)?.package
+      : visibleTasks.find((task) => task.package)?.package;
+    const totalLimit = Number(activePlan?.dailyAdsRequired || activePlan?.minAdsRequired || visibleTasks[0]?.package?.dailyAdsRequired || visibleTasks[0]?.package?.minAdsRequired || 20);
+    let assignedCount = 0;
     visibleTasks = visibleTasks.filter((task) => {
-      const key = task.packageId || 'free';
-      const limit = Number(task.package?.dailyAdsRequired || task.package?.minAdsRequired || 20);
-      const current = assignedCountByPlan.get(key) || 0;
-      if (current >= limit) return false;
-      assignedCountByPlan.set(key, current + 1);
+      const linkKey = String(task.taskUrl || task.videoUrl || task.title || task.id).trim().toLowerCase();
+      if (linkKey && seenLinks.has(linkKey)) return false;
+      if (assignedCount >= totalLimit) return false;
+      if (linkKey) seenLinks.add(linkKey);
+      assignedCount += 1;
       return true;
     });
   }

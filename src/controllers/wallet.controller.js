@@ -99,11 +99,7 @@ exports.buildHistory = buildHistory;
 
 exports.summary = asyncHandler(async (req, res) => {
   const wallet = await ensureWallet(req.user.id);
-  const transactions = await Transaction.findAll({
-    where: { userId: req.user.id },
-    order: [['createdAt', 'DESC']],
-    limit: 20
-  });
+  const transactions = await buildHistory(req.user.id, req.query);
   res.json({ wallet, transactions });
 });
 
