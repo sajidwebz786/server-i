@@ -13,6 +13,7 @@ const MAX_LEVELS = 10;
 
 async function buildReferralChain(user, packageId, options = {}) {
   const transaction = options.transaction;
+  const maxLevels = Number(options.maxLevels || MAX_LEVELS);
   if (!user.referredById) {
     return Referral.findAll({ where: { childUserId: user.id }, transaction });
   }
@@ -21,7 +22,7 @@ async function buildReferralChain(user, packageId, options = {}) {
   let parentId = user.referredById;
   let level = 1;
 
-  while (parentId && level <= MAX_LEVELS) {
+  while (parentId && level <= maxLevels) {
     const parent = await User.findByPk(parentId, { transaction });
     if (!parent) break;
 

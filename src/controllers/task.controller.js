@@ -5,8 +5,16 @@ const ApiError = require('../utils/apiError');
 const { Op } = require('sequelize');
 const { earningPerAdForPackage } = require('../utils/plans');
 
+const FREE_AD_LIMIT = 10;
+const FREE_AD_REWARD = 0.5;
+const FREE_DIRECT_REFERRAL_PERCENT = 10;
+
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function hasActivePackage(user) {
+  return Boolean(user?.packageId && user.status === 'active' && (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) >= new Date()));
 }
 
 async function notifyOnce({ event, title, body, data }) {
@@ -36,7 +44,7 @@ async function approvedPackageIdsForUser(userId, options = {}) {
 }
 
 async function activePackageIdsForUser(user, options = {}) {
-  if (user.packageId && user.status === 'active' && (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) >= new Date())) {
+  if (hasActivePackage(user)) {
     return [user.packageId];
   }
   return approvedPackageIdsForUser(user.id, options);
@@ -44,7 +52,7 @@ async function activePackageIdsForUser(user, options = {}) {
 
 async function taskAccessWhereForUser(user, options = {}) {
   const packageIds = await activePackageIdsForUser(user, options);
-  if (!packageIds.length) return null;
+  if (!packageIds.length) return { status: 'active', packageId: null };
   return { status: 'active', [Op.or]: [{ packageId: null }, { packageId: { [Op.in]: packageIds } }] };
 }
 
@@ -57,11 +65,58 @@ async function userCanAccessTask(user, task, options = {}) {
 function taskRewardAmount(task) {
   const plan = task?.package;
   if (plan) return money(earningPerAdForPackage(plan));
-  if (Number(task?.rewardAmount || 0)) return money(task.rewardAmount);
-  return 0.5;
+  return FREE_AD_REWARD;
 }
 
-async function creditTaskRewardOnce({ submission, task, taskDate }, options = {}) {
+async function creditFreeDirectReferralOnce({ user, submission, taskDate, taskReward }, options = {}) {
+  if (hasActivePackage(user) || !user?.referredById || taskReward <= 0) return null;
+  const transaction = options.transaction;
+  const existing = await Income.findOne({
+    where: {
+      userId: user.referredById,
+      fromUserId: user.id,
+      userTaskId: submission.id,
+      type: 'referral',
+      level: 1
+    },
+    transaction
+  });
+  if (existing) return existing;
+
+  const amount = money((taskReward * FREE_DIRECT_REFERRAL_PERCENT) / 100);
+  if (amount <= 0) return null;
+
+  const result = await creditIncome({
+    userId: user.referredById,
+    amount,
+    category: 'referral_income',
+    referenceDate: taskDate,
+    remarks: `Direct free ad referral income from ${user.name}`,
+    incomePayload: {
+      userId: user.referredById,
+      fromUserId: user.id,
+      userTaskId: submission.id,
+      type: 'referral',
+      level: 1,
+      percentage: FREE_DIRECT_REFERRAL_PERCENT,
+      amount,
+      status: 'approved',
+      remarks: `10% direct referral commission on free ad completed for ${taskDate}`
+    }
+  }, { transaction });
+
+  await Notification.create({
+    userId: user.referredById,
+    title: 'Direct referral income credited',
+    body: `You earned ${amount} from a direct free ad referral.`,
+    type: 'income',
+    data: { incomeId: result.income.id, fromUserId: user.id, userTaskId: submission.id }
+  }, { transaction });
+
+  return result.income;
+}
+
+async function creditTaskRewardOnce({ submission, task, taskDate, user }, options = {}) {
   const transaction = options.transaction;
   const existing = await Income.findOne({
     where: { userTaskId: submission.id, type: 'task', status: 'approved' },
@@ -87,6 +142,9 @@ async function creditTaskRewardOnce({ submission, task, taskDate }, options = {}
       remarks: `Automatically credited for ${taskDate}`
     }
   }, { transaction });
+  if (!task?.packageId) {
+    await creditFreeDirectReferralOnce({ user, submission, taskDate, taskReward: amount }, { transaction });
+  }
   return { credited: true, amount };
 }
 
@@ -131,16 +189,14 @@ async function maybeNotifyTaskCompletion({ req, task, submission, taskDate, prev
 
 exports.list = asyncHandler(async (req, res) => {
   const packageIds = req.user.role === 'admin' ? [] : await activePackageIdsForUser(req.user);
-  if (req.user.role !== 'admin' && !packageIds.length) {
-    res.set('Cache-Control', 'no-store');
-    return res.json({ tasks: [] });
-  }
 
   const now = new Date();
   const taskDate = todayKey();
   const where = req.user.role === 'admin'
     ? {}
-    : { status: 'active', [Op.or]: [{ packageId: null }, { packageId: { [Op.in]: packageIds } }] };
+    : packageIds.length
+      ? { status: 'active', [Op.or]: [{ packageId: null }, { packageId: { [Op.in]: packageIds } }] }
+      : { status: 'active', packageId: null };
   const tasks = await Task.findAll({
     where,
     include: [
@@ -181,7 +237,9 @@ exports.list = asyncHandler(async (req, res) => {
     const activePlan = req.user.packageId
       ? visibleTasks.find((task) => task.packageId === req.user.packageId)?.package
       : visibleTasks.find((task) => task.package)?.package;
-    const totalLimit = Number(activePlan?.dailyAdsRequired || activePlan?.minAdsRequired || visibleTasks[0]?.package?.dailyAdsRequired || visibleTasks[0]?.package?.minAdsRequired || 20);
+    const totalLimit = packageIds.length
+      ? Number(activePlan?.dailyAdsRequired || activePlan?.minAdsRequired || visibleTasks[0]?.package?.dailyAdsRequired || visibleTasks[0]?.package?.minAdsRequired || 20)
+      : FREE_AD_LIMIT;
     let assignedCount = 0;
     visibleTasks = visibleTasks.filter((task) => {
       const linkKey = String(task.taskUrl || task.videoUrl || task.title || task.id).trim().toLowerCase();
@@ -298,7 +356,7 @@ exports.saveProgress = asyncHandler(async (req, res) => {
   }
   if (Number(submission.watchPercent || percent || 0) >= 100) {
     await sequelize.transaction(async (transaction) => {
-      await creditTaskRewardOnce({ submission, task, taskDate }, { transaction });
+      await creditTaskRewardOnce({ submission, task, taskDate, user: req.user }, { transaction });
     });
   }
   await maybeNotifyTaskCompletion({ req, task, submission, taskDate, previousPercent, percent: Number(submission.watchPercent || percent || 0) });
@@ -353,7 +411,8 @@ exports.approveSubmission = asyncHandler(async (req, res) => {
     await creditTaskRewardOnce({
       submission,
       task: submission.task,
-      taskDate: submission.taskDate
+      taskDate: submission.taskDate,
+      user: submission.user
     }, { transaction });
 
     await Notification.create({

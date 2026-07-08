@@ -7,6 +7,7 @@ const { env } = require('../config/env');
 const { makeReferralCode } = require('../utils/referralCode');
 const { createOtp, verifyOtp } = require('../services/otp.service');
 const { subscriptionSummary } = require('../utils/subscription');
+const { buildReferralChain } = require('../services/referral.service');
 
 function tokenFor(user) {
   return jwt.sign({ id: user.id, role: user.role }, env.jwtSecret, { expiresIn: env.jwtExpiresIn });
@@ -103,6 +104,7 @@ exports.register = asyncHandler(async (req, res) => {
     }, { transaction });
 
     await Wallet.create({ userId: created.id }, { transaction });
+    await buildReferralChain(created, null, { transaction, maxLevels: 1 });
     await createOtp({ userId: created.id, channel: 'mobile', target: mobile, purpose: 'register' }, { transaction });
     return created;
   });

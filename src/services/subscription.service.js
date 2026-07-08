@@ -2,6 +2,9 @@ const { Op } = require('sequelize');
 const { Payment, Package, Task, UserTask } = require('../models');
 const { earningPerAdForPackage } = require('../utils/plans');
 
+const FREE_AD_LIMIT = 10;
+const FREE_AD_REWARD = 0.5;
+
 function isActive(user, payment) {
   if (!payment) return false;
   const expiresAt = user.subscriptionExpiresAt || payment.subscriptionExpiresAt;
@@ -17,27 +20,13 @@ async function subscriptionSummaryForUser(user, options = {}) {
   });
 
   const packageRecord = payment?.package || user.package || null;
-  if (!packageRecord) {
-    return {
-      planName: null,
-      planAmount: 0,
-      planStartDate: null,
-      planExpiryDate: user.subscriptionExpiresAt || null,
-      status: 'inactive',
-      totalAdvertisements: 0,
-      remainingAdvertisements: 0,
-      advertisementsCompleted: 0,
-      remainingTasks: 0,
-      earningPerAdvertisement: 0
-    };
-  }
 
   const startDate = payment?.approvedAt || payment?.createdAt || user.createdAt;
   const taskWhere = {
     status: 'active',
-    [Op.or]: [{ packageId: packageRecord.id }, { packageId: null }]
+    ...(packageRecord ? { [Op.or]: [{ packageId: packageRecord.id }, { packageId: null }] } : { packageId: null })
   };
-  const totalAdvertisements = Number(packageRecord.dailyAdsRequired || packageRecord.minAdsRequired || 20);
+  const totalAdvertisements = packageRecord ? Number(packageRecord.dailyAdsRequired || packageRecord.minAdsRequired || 20) : FREE_AD_LIMIT;
   const allocatedTaskIds = await Task.findAll({
     where: taskWhere,
     attributes: ['id'],
@@ -59,17 +48,17 @@ async function subscriptionSummaryForUser(user, options = {}) {
   const remainingAdvertisements = Math.max(totalAdvertisements - advertisementsCompleted, 0);
 
   return {
-    planName: packageRecord.name,
-    planAmount: Number(packageRecord.baseAmount || payment?.amount || 0),
-    payableAmount: Number(packageRecord.finalAmount || payment?.amount || 0),
+    planName: packageRecord?.name || 'Free Joiner',
+    planAmount: packageRecord ? Number(packageRecord.baseAmount || payment?.amount || 0) : 0,
+    payableAmount: packageRecord ? Number(packageRecord.finalAmount || payment?.amount || 0) : 0,
     planStartDate: startDate,
     planExpiryDate: user.subscriptionExpiresAt || null,
-    status: isActive(user, payment) ? 'active' : 'inactive',
+    status: packageRecord ? (isActive(user, payment) ? 'active' : 'inactive') : 'free',
     totalAdvertisements,
     remainingAdvertisements,
     advertisementsCompleted,
     remainingTasks: remainingAdvertisements,
-    earningPerAdvertisement: earningPerAdForPackage(packageRecord),
+    earningPerAdvertisement: packageRecord ? earningPerAdForPackage(packageRecord) : FREE_AD_REWARD,
     paymentId: payment?.id || null
   };
 }
