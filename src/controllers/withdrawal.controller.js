@@ -110,7 +110,7 @@ exports.approve = asyncHandler(async (req, res) => {
 exports.reject = asyncHandler(async (req, res) => {
   const withdrawal = await Withdrawal.findByPk(req.params.id);
   if (!withdrawal) throw new ApiError(404, 'Withdrawal not found');
-  if (!['pending', 'approved'].includes(withdrawal.status)) {
+  if (!['pending', 'approved', 'processing'].includes(withdrawal.status)) {
     throw new ApiError(400, 'This withdrawal cannot be rejected');
   }
 
@@ -133,10 +133,30 @@ exports.reject = asyncHandler(async (req, res) => {
   res.json({ withdrawal: presentWithdrawal(withdrawal) });
 });
 
+exports.markProcessing = asyncHandler(async (req, res) => {
+  const withdrawal = await Withdrawal.findByPk(req.params.id);
+  if (!withdrawal) throw new ApiError(404, 'Withdrawal not found');
+  if (withdrawal.status !== 'approved') throw new ApiError(400, 'Only verified withdrawals can be moved to processing');
+
+  await withdrawal.update({
+    status: 'processing',
+    adminRemarks: req.body.adminRemarks || withdrawal.adminRemarks,
+    timeline: [...normalizeTimeline(withdrawal), timelineEvent('processing', req.user, req.body.adminRemarks || 'Processing for credit')]
+  });
+  await Notification.create({
+    userId: withdrawal.userId,
+    title: 'Withdrawal processing',
+    body: 'Your withdrawal is processing for credit.',
+    type: 'withdrawal',
+    data: { withdrawalId: withdrawal.id }
+  });
+  res.json({ withdrawal: presentWithdrawal(withdrawal) });
+});
+
 exports.markPaid = asyncHandler(async (req, res) => {
   const withdrawal = await Withdrawal.findByPk(req.params.id);
   if (!withdrawal) throw new ApiError(404, 'Withdrawal not found');
-  if (withdrawal.status !== 'approved') throw new ApiError(400, 'Only approved withdrawals can be marked paid');
+  if (withdrawal.status !== 'processing') throw new ApiError(400, 'Only processing withdrawals can be marked paid');
 
   await sequelize.transaction(async (transaction) => {
     await markWithdrawalPaid(withdrawal.userId, withdrawal.amount, { transaction });
@@ -147,7 +167,6 @@ exports.markPaid = asyncHandler(async (req, res) => {
       adminRemarks: req.body.adminRemarks || withdrawal.adminRemarks,
       timeline: [
         ...normalizeTimeline(withdrawal),
-        timelineEvent('processing', req.user, 'Processing for credit'),
         timelineEvent('paid', req.user, req.body.adminRemarks || 'Amount credited')
       ]
     }, { transaction });

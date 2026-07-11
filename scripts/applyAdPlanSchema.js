@@ -107,6 +107,17 @@ async function applyBankDetailsSchema(table) {
   await addColumn(table, 'aadhaar_number', 'VARCHAR(255)');
 }
 
+async function applyWithdrawalStatusEnum() {
+  const [types] = await sequelize.query(`
+    SELECT typname
+    FROM pg_type
+    WHERE typname ILIKE 'enum%withdrawal%status'
+  `);
+  for (const type of types) {
+    await sequelize.query(`ALTER TYPE ${qi(type.typname)} ADD VALUE IF NOT EXISTS 'processing';`);
+  }
+}
+
 async function main() {
   if (!env.dbHost || env.dbHost === 'localhost') {
     console.log('Refusing to run: DB_HOST is not set to a remote database.');
@@ -129,6 +140,7 @@ async function main() {
   if (transactionsTable) await addColumn(transactionsTable, 'reference_date', 'DATE');
   if (bankDetailsTable) await applyBankDetailsSchema(bankDetailsTable);
   if (withdrawalsTable) {
+    await applyWithdrawalStatusEnum();
     await addColumn(withdrawalsTable, 'transaction_number', 'VARCHAR(255)');
     await addColumn(withdrawalsTable, 'timeline', "JSONB NOT NULL DEFAULT '[]'::jsonb");
   }

@@ -47,13 +47,14 @@ router.get('/my', auth, controller.myWithdrawals);
  *     parameters:
  *       - in: query
  *         name: status
- *         schema: { type: string, enum: [pending, approved, rejected, paid] }
+ *         schema: { type: string, enum: [pending, approved, processing, rejected, paid] }
  *     responses:
  *       200:
  *         description: Withdrawal list
  */
 router.get('/admin', auth, requireRole('admin'), controller.adminList);
 router.put('/admin/:id/approve', auth, requireRole('admin'), validate(schemas.adminRemarks), controller.approve);
+router.put('/admin/:id/processing', auth, requireRole('admin'), validate(schemas.adminRemarks), controller.markProcessing);
 router.put('/admin/:id/reject', auth, requireRole('admin'), validate(schemas.adminRemarks), controller.reject);
 router.put('/admin/:id/paid', auth, requireRole('admin'), controller.markPaid);
 
