@@ -7,7 +7,8 @@ const FREE_AD_REWARD = 0.5;
 
 function isActive(user, payment) {
   if (!payment) return false;
-  const expiresAt = user.subscriptionExpiresAt || payment.subscriptionExpiresAt;
+  const startDate = payment?.approvedAt || payment?.createdAt || user.createdAt;
+  const expiresAt = user.subscriptionExpiresAt || payment?.subscriptionExpiresAt || new Date(new Date(startDate).getTime() + 30 * 24 * 60 * 60 * 1000);
   return user.status === 'active' && (!expiresAt || new Date(expiresAt) >= new Date());
 }
 
@@ -52,7 +53,7 @@ async function subscriptionSummaryForUser(user, options = {}) {
     planAmount: packageRecord ? Number(packageRecord.baseAmount || payment?.amount || 0) : 0,
     payableAmount: packageRecord ? Number(packageRecord.finalAmount || payment?.amount || 0) : 0,
     planStartDate: startDate,
-    planExpiryDate: user.subscriptionExpiresAt || null,
+    planExpiryDate: user.subscriptionExpiresAt || new Date(new Date(startDate).getTime() + 30 * 24 * 60 * 60 * 1000),
     status: packageRecord ? (isActive(user, payment) ? 'active' : 'inactive') : 'free',
     totalAdvertisements,
     remainingAdvertisements,

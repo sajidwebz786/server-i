@@ -36,8 +36,12 @@ function uploader(folder) {
       params: async (req, file) => ({
         folder: `luminateads/${folder}`,
         resource_type: 'auto',
-        public_id: `${Date.now()}-${Math.round(Math.random() * 1e9)}`,
+        public_id: folder === 'profiles' && req.user?.id
+          ? `user-${req.user.id}`
+          : `${req.user?.id || 'public'}-${Date.now()}-${Math.round(Math.random() * 1e9)}`,
         format: path.extname(file.originalname).replace('.', '').toLowerCase() || undefined,
+        overwrite: folder === 'profiles',
+        invalidate: folder === 'profiles',
         type: 'upload'
       })
     })

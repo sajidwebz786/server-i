@@ -21,7 +21,7 @@ function presentPackage(pkg) {
 
 exports.home = asyncHandler(async (req, res) => {
   const [banners, packages, latestTasks] = await Promise.all([
-    Banner.findAll({ where: { status: 'active', placement: { [Op.in]: ['home', 'mobile'] } }, order: [['createdAt', 'DESC']] }),
+    Banner.findAll({ where: { status: 'active', placement: { [Op.in]: ['home', 'mobile', 'promotion'] } }, order: [['createdAt', 'DESC']] }),
     Package.findAll({ where: { status: 'active' }, order: [['finalAmount', 'ASC']] }),
     Task.findAll({ where: { status: 'active' }, order: [['createdAt', 'DESC']], limit: 6 })
   ]);

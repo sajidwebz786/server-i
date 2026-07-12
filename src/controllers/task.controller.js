@@ -196,7 +196,7 @@ exports.list = asyncHandler(async (req, res) => {
   const where = req.user.role === 'admin'
     ? {}
     : packageIds.length
-      ? { status: 'active', packageId: { [Op.in]: packageIds } }
+      ? { status: 'active', [Op.or]: [{ packageId: null }, { packageId: { [Op.in]: packageIds } }] }
       : { status: 'active', packageId: null };
   const tasks = await Task.findAll({
     where,
@@ -238,16 +238,17 @@ exports.list = asyncHandler(async (req, res) => {
     const activePlan = req.user.packageId
       ? visibleTasks.find((task) => task.packageId === req.user.packageId)?.package
       : visibleTasks.find((task) => task.package)?.package;
-    const totalLimit = packageIds.length
-      ? Number(activePlan?.dailyAdsRequired || activePlan?.minAdsRequired || visibleTasks[0]?.package?.dailyAdsRequired || visibleTasks[0]?.package?.minAdsRequired || 20)
-      : FREE_AD_LIMIT;
-    let assignedCount = 0;
+    const paidLimit = packageIds.length ? Number(activePlan?.dailyAdsRequired || activePlan?.minAdsRequired || 20) : 0;
+    let freeCount = 0;
+    let paidCount = 0;
     visibleTasks = visibleTasks.filter((task) => {
       const linkKey = String(task.taskUrl || task.videoUrl || task.title || task.id).trim().toLowerCase();
       if (linkKey && seenLinks.has(linkKey)) return false;
-      if (assignedCount >= totalLimit) return false;
+      if (!task.packageId && freeCount >= FREE_AD_LIMIT) return false;
+      if (task.packageId && paidCount >= paidLimit) return false;
       if (linkKey) seenLinks.add(linkKey);
-      assignedCount += 1;
+      if (task.packageId) paidCount += 1;
+      else freeCount += 1;
       return true;
     });
   }
@@ -276,7 +277,7 @@ exports.postTodayTwenty = asyncHandler(async (req, res) => {
       packageId: item.packageId || req.body.packageId || null,
       startsAt,
       endsAt,
-      status: 'active'
+      status: ['active', 'inactive', 'expired'].includes(item.status) ? item.status : 'active'
     };
   });
   const tasks = await Task.bulkCreate(payloads);

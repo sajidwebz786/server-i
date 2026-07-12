@@ -188,6 +188,7 @@ exports.updateProfile = asyncHandler(async (req, res) => {
 exports.updateProfilePhoto = asyncHandler(async (req, res) => {
   if (!req.file) throw new ApiError(400, 'Profile photo is required');
   const avatarUrl = uploadedFileUrl(req.file, 'profiles');
+  req.user.avatarUrl = avatarUrl;
   try {
     const quotedUserTable = sequelize.getQueryInterface().quoteIdentifier(await resolveUserTableName());
     await sequelize.query(

@@ -20,11 +20,14 @@ async function subscriptionSummary(user, options = {}) {
   });
 
   const plan = user.package || approvedPayment?.package || null;
-  const active = Boolean(plan && user.status === 'active' && (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) >= new Date()));
+  const planStart = approvedPayment?.approvedAt || approvedPayment?.createdAt || null;
+  const calculatedExpiry = planStart ? new Date(new Date(planStart).getTime() + 30 * 24 * 60 * 60 * 1000) : null;
+  const planExpiry = user.subscriptionExpiresAt || calculatedExpiry;
+  const active = Boolean(plan && user.status === 'active' && (!planExpiry || new Date(planExpiry) >= new Date()));
   const freePayoutEligibleAt = new Date(new Date(user.createdAt || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000);
   const totalAdvertisements = plan ? Number(plan.dailyAdsRequired || plan.minAdsRequired || 20) : FREE_AD_LIMIT;
   const packageWhere = plan
-    ? { status: 'active', [Op.or]: [{ packageId: null }, { packageId: plan.id }] }
+    ? { status: 'active', packageId: plan.id }
     : { status: 'active', packageId: null };
 
   const activeTasks = await Task.findAll({
@@ -49,8 +52,8 @@ async function subscriptionSummary(user, options = {}) {
     planAmount: plan ? Number(plan.baseAmount || 0) : 0,
     payableAmount: plan ? Number(plan.finalAmount || plan.baseAmount || 0) : 0,
     earningPerAdvertisement: plan ? earningPerAdForPackage(plan) : FREE_AD_REWARD,
-    planStartDate: dateOnly(approvedPayment?.approvedAt || approvedPayment?.createdAt),
-    planExpiryDate: dateOnly(user.subscriptionExpiresAt),
+    planStartDate: dateOnly(planStart),
+    planExpiryDate: dateOnly(planExpiry),
     status: active ? 'active' : 'free',
     freePayoutEligibleAt: dateOnly(freePayoutEligibleAt),
     freePayoutEligible: Boolean(active || freePayoutEligibleAt <= new Date()),
