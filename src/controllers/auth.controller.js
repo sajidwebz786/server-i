@@ -7,6 +7,7 @@ const { env } = require('../config/env');
 const { makeReferralCode } = require('../utils/referralCode');
 const { createOtp, verifyOtp } = require('../services/otp.service');
 const { subscriptionSummary } = require('../utils/subscription');
+const { uploadedFileUrl } = require('../middleware/upload');
 const { buildReferralChain } = require('../services/referral.service');
 
 function tokenFor(user) {
@@ -186,7 +187,7 @@ exports.updateProfile = asyncHandler(async (req, res) => {
 
 exports.updateProfilePhoto = asyncHandler(async (req, res) => {
   if (!req.file) throw new ApiError(400, 'Profile photo is required');
-  const avatarUrl = `/uploads/profiles/${req.file.filename}`;
+  const avatarUrl = uploadedFileUrl(req.file, 'profiles');
   try {
     const quotedUserTable = sequelize.getQueryInterface().quoteIdentifier(await resolveUserTableName());
     await sequelize.query(

@@ -1,5 +1,6 @@
 const { sequelize, Payment, Package, User, Notification } = require('../models');
 const { creditReferralIncome, buildReferralChain } = require('../services/referral.service');
+const { uploadedFileUrl } = require('../middleware/upload');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
 const { withPaymentProof } = require('../utils/files');
@@ -19,7 +20,7 @@ exports.create = asyncHandler(async (req, res) => {
     amount: pkg.finalAmount,
     paymentMode,
     utrNumber: utrNumber || null,
-    screenshot: req.file ? `/uploads/payments/${req.file.filename}` : null
+    screenshot: uploadedFileUrl(req.file, 'payments')
   });
 
   res.status(201).json({ payment: withPaymentProof(payment) });

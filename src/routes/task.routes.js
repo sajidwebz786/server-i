@@ -33,6 +33,7 @@ const schemas = require('../validators/schemas');
  */
 router.get('/', auth, controller.list);
 router.post('/', auth, requireRole('admin'), validate(schemas.createTask), controller.create);
+router.post('/admin/post-today-20', auth, requireRole('admin'), controller.postTodayTwenty);
 /**
  * @swagger
  * /api/tasks/{id}/submit:

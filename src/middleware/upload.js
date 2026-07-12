@@ -2,6 +2,11 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const ApiError = require('../utils/apiError');
+const { v2: cloudinary } = require('cloudinary');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+const cloudinaryEnabled = Boolean(process.env.CLOUDINARY_URL);
+if (cloudinaryEnabled) cloudinary.config({ secure: true });
 
 function storage(folder) {
   return multer.diskStorage({
@@ -25,11 +30,30 @@ function fileFilter(req, file, cb) {
 }
 
 function uploader(folder) {
+  const selectedStorage = cloudinaryEnabled
+    ? new CloudinaryStorage({
+      cloudinary,
+      params: async (req, file) => ({
+        folder: `luminateads/${folder}`,
+        resource_type: 'auto',
+        public_id: `${Date.now()}-${Math.round(Math.random() * 1e9)}`,
+        format: path.extname(file.originalname).replace('.', '').toLowerCase() || undefined,
+        type: 'upload'
+      })
+    })
+    : storage(folder);
   return multer({
-    storage: storage(folder),
+    storage: selectedStorage,
     fileFilter,
     limits: { fileSize: 5 * 1024 * 1024 }
   });
 }
 
-module.exports = { uploader };
+function uploadedFileUrl(file, folder) {
+  if (!file) return null;
+  return file.path && /^https?:\/\//i.test(file.path)
+    ? file.path
+    : `/uploads/${folder}/${file.filename}`;
+}
+
+module.exports = { uploader, uploadedFileUrl };

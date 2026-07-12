@@ -50,6 +50,11 @@ function presentWithdrawal(withdrawal) {
 }
 
 exports.request = asyncHandler(async (req, res) => {
+  const hasActivePaidPlan = Boolean(req.user.packageId && req.user.status === 'active' && (!req.user.subscriptionExpiresAt || new Date(req.user.subscriptionExpiresAt) >= new Date()));
+  const freePayoutEligibleAt = new Date(new Date(req.user.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000);
+  if (!hasActivePaidPlan && freePayoutEligibleAt > new Date()) {
+    throw new ApiError(400, `Free-plan payout is available after ${freePayoutEligibleAt.toISOString().slice(0, 10)}. Paid-plan payouts may be processed earlier after activation and admin approval.`);
+  }
   const bank = await BankDetail.findOne({ where: { userId: req.user.id } });
   if (!bank) throw new ApiError(400, 'Please add bank or UPI details before withdrawal');
 

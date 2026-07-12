@@ -2,6 +2,7 @@ const { sequelize, Task, UserTask, User, Package, Payment, Notification, Income 
 const { creditIncome, money } = require('../services/wallet.service');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
+const { uploadedFileUrl } = require('../middleware/upload');
 const { Op } = require('sequelize');
 const { earningPerAdForPackage } = require('../utils/plans');
 
@@ -195,7 +196,7 @@ exports.list = asyncHandler(async (req, res) => {
   const where = req.user.role === 'admin'
     ? {}
     : packageIds.length
-      ? { status: 'active', [Op.or]: [{ packageId: null }, { packageId: { [Op.in]: packageIds } }] }
+      ? { status: 'active', packageId: { [Op.in]: packageIds } }
       : { status: 'active', packageId: null };
   const tasks = await Task.findAll({
     where,
@@ -259,6 +260,29 @@ exports.create = asyncHandler(async (req, res) => {
   res.status(201).json({ task });
 });
 
+exports.postTodayTwenty = asyncHandler(async (req, res) => {
+  const rows = Array.isArray(req.body.tasks) ? req.body.tasks : [];
+  if (rows.length !== 20) throw new ApiError(400, 'Exactly 20 tasks are required');
+  const startsAt = new Date();
+  const endsAt = new Date(startsAt.getTime() + 24 * 60 * 60 * 1000);
+  const payloads = rows.map((item, index) => {
+    if (!item.taskUrl) throw new ApiError(400, `Task ${index + 1} URL is required`);
+    return {
+      title: item.title || `Today's Advertisement ${index + 1}`,
+      platform: item.platform || 'youtube',
+      taskUrl: item.taskUrl,
+      description: item.description || 'Watch the complete advertisement to finish this task.',
+      rewardAmount: Number(item.rewardAmount || 0),
+      packageId: item.packageId || req.body.packageId || null,
+      startsAt,
+      endsAt,
+      status: 'active'
+    };
+  });
+  const tasks = await Task.bulkCreate(payloads);
+  res.status(201).json({ tasks, count: tasks.length, taskDate: startsAt.toISOString().slice(0, 10) });
+});
+
 exports.update = asyncHandler(async (req, res) => {
   const task = await Task.findByPk(req.params.id);
   if (!task) throw new ApiError(404, 'Task not found');
@@ -302,7 +326,7 @@ exports.submit = asyncHandler(async (req, res) => {
       userId: req.user.id,
       taskId: task.id,
       taskDate,
-      screenshot: req.file ? `/uploads/tasks/${req.file.filename}` : null,
+      screenshot: uploadedFileUrl(req.file, 'tasks'),
       notes: req.body.notes || null,
       status: 'submitted'
     }
@@ -311,7 +335,7 @@ exports.submit = asyncHandler(async (req, res) => {
   if (!created) {
     if (submission.status === 'approved') throw new ApiError(400, 'Task is already approved');
     await submission.update({
-      screenshot: req.file ? `/uploads/tasks/${req.file.filename}` : submission.screenshot,
+      screenshot: uploadedFileUrl(req.file, 'tasks') || submission.screenshot,
       notes: req.body.notes || submission.notes,
       status: 'submitted',
       adminRemarks: null

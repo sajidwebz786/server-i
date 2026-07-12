@@ -21,6 +21,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
 const { runDailyDebits } = require('../services/dailyDebit.service');
 const { subscriptionSummary } = require('../utils/subscription');
+const { uploadedFileUrl } = require('../middleware/upload');
 const { buildHistory } = require('./wallet.controller');
 
 function money(value) {
@@ -446,7 +447,7 @@ exports.transactions = asyncHandler(async (req, res) => {
 });
 
 exports.createBanner = asyncHandler(async (req, res) => {
-  const imageUrl = req.file ? `/uploads/banners/${req.file.filename}` : req.body.imageUrl;
+  const imageUrl = uploadedFileUrl(req.file, 'banners') || req.body.imageUrl;
   if (!imageUrl) throw new ApiError(400, 'Banner image is required');
   const banner = await Banner.create({
     ...req.body,
@@ -460,7 +461,7 @@ exports.updateBanner = asyncHandler(async (req, res) => {
   if (!banner) throw new ApiError(404, 'Banner not found');
   await banner.update({
     ...req.body,
-    imageUrl: req.file ? `/uploads/banners/${req.file.filename}` : req.body.imageUrl || banner.imageUrl
+    imageUrl: uploadedFileUrl(req.file, 'banners') || req.body.imageUrl || banner.imageUrl
   });
   res.json({ banner });
 });

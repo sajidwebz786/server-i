@@ -21,6 +21,7 @@ async function subscriptionSummary(user, options = {}) {
 
   const plan = user.package || approvedPayment?.package || null;
   const active = Boolean(plan && user.status === 'active' && (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) >= new Date()));
+  const freePayoutEligibleAt = new Date(new Date(user.createdAt || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000);
   const totalAdvertisements = plan ? Number(plan.dailyAdsRequired || plan.minAdsRequired || 20) : FREE_AD_LIMIT;
   const packageWhere = plan
     ? { status: 'active', [Op.or]: [{ packageId: null }, { packageId: plan.id }] }
@@ -51,6 +52,8 @@ async function subscriptionSummary(user, options = {}) {
     planStartDate: dateOnly(approvedPayment?.approvedAt || approvedPayment?.createdAt),
     planExpiryDate: dateOnly(user.subscriptionExpiresAt),
     status: active ? 'active' : 'free',
+    freePayoutEligibleAt: dateOnly(freePayoutEligibleAt),
+    freePayoutEligible: Boolean(active || freePayoutEligibleAt <= new Date()),
     totalAdvertisements,
     advertisementsCompleted: cappedCompleted,
     remainingAdvertisements: Math.max(totalAdvertisements - cappedCompleted, 0),
