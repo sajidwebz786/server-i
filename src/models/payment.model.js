@@ -14,7 +14,8 @@ const Payment = sequelize.define('Payment', {
   status: { type: DataTypes.ENUM('pending', 'approved', 'rejected'), allowNull: false, defaultValue: 'pending' },
   adminRemarks: { type: DataTypes.TEXT, allowNull: true },
   approvedById: { type: DataTypes.UUID, allowNull: true },
-  approvedAt: { type: DataTypes.DATE, allowNull: true }
+  approvedAt: { type: DataTypes.DATE, allowNull: true },
+  subscriptionExpiresAt: { type: DataTypes.DATE, allowNull: true }
 });
 
 module.exports = Payment;

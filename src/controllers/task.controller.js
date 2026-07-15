@@ -38,16 +38,18 @@ async function notifyOnce({ event, title, body, data }) {
 async function approvedPackageIdsForUser(userId, options = {}) {
   const payments = await Payment.findAll({
     where: { userId, status: 'approved' },
-    attributes: ['packageId'],
+    attributes: ['packageId', 'approvedAt', 'createdAt', 'subscriptionExpiresAt'],
     transaction: options.transaction
   });
-  return [...new Set(payments.map((payment) => payment.packageId).filter(Boolean))];
+  const now = new Date();
+  return [...new Set(payments.filter((payment) => {
+    const start = payment.approvedAt || payment.createdAt;
+    const expiry = payment.subscriptionExpiresAt || (start && new Date(new Date(start).getTime() + 30 * 24 * 60 * 60 * 1000));
+    return !expiry || new Date(expiry) >= now;
+  }).map((payment) => payment.packageId).filter(Boolean))];
 }
 
 async function activePackageIdsForUser(user, options = {}) {
-  if (hasActivePackage(user)) {
-    return [user.packageId];
-  }
   return approvedPackageIdsForUser(user.id, options);
 }
 

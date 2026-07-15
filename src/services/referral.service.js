@@ -60,6 +60,18 @@ async function creditReferralIncome({ user, packageRecord, payment }, options = 
 
   const credited = [];
   for (const referral of referrals) {
+    const recipient = await User.findByPk(referral.parentUserId, {
+      attributes: ['id', 'packageId', 'status', 'subscriptionExpiresAt'],
+      transaction
+    });
+    if (!recipient) continue;
+    const recipientHasPaidPlan = Boolean(
+      recipient.packageId &&
+      recipient.status === 'active' &&
+      (!recipient.subscriptionExpiresAt || new Date(recipient.subscriptionExpiresAt) >= new Date())
+    );
+    if (!recipientHasPaidPlan && referral.level > 1) continue;
+
     const existingIncome = await Income.findOne({
       where: {
         userId: referral.parentUserId,

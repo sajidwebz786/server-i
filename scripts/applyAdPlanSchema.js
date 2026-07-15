@@ -133,8 +133,17 @@ async function main() {
   const usersTable = await findTable(['users', 'Users']);
   const bankDetailsTable = await findTable(['bank_details', 'BankDetails']);
   const withdrawalsTable = await findTable(['withdrawals', 'Withdrawals']);
+  const paymentsTable = await findTable(['payments', 'Payments']);
 
   if (usersTable) await addColumn(usersTable, 'avatar_url', 'VARCHAR(255)');
+  if (paymentsTable) {
+    await addColumn(paymentsTable, 'subscription_expires_at', 'TIMESTAMP WITH TIME ZONE');
+    await sequelize.query(`
+      UPDATE ${qi(paymentsTable)}
+      SET ${qi('subscription_expires_at')} = COALESCE(${qi('approved_at')}, ${qi('created_at')}) + INTERVAL '30 days'
+      WHERE ${qi('status')} = 'approved' AND ${qi('subscription_expires_at')} IS NULL;
+    `);
+  }
   if (packagesTable) await applyPackagesSchema(packagesTable);
   if (userTasksTable) await applyUserTasksSchema(userTasksTable);
   if (transactionsTable) await addColumn(transactionsTable, 'reference_date', 'DATE');
@@ -151,7 +160,8 @@ async function main() {
     userTasksTable,
     transactionsTable,
     bankDetailsTable,
-    withdrawalsTable
+    withdrawalsTable,
+    paymentsTable
   });
 }
 

@@ -22,7 +22,25 @@ async function subscriptionSummary(user, options = {}) {
   const plan = user.package || approvedPayment?.package || null;
   const planStart = approvedPayment?.approvedAt || approvedPayment?.createdAt || null;
   const calculatedExpiry = planStart ? new Date(new Date(planStart).getTime() + 30 * 24 * 60 * 60 * 1000) : null;
-  const planExpiry = user.subscriptionExpiresAt || calculatedExpiry;
+  const planExpiry = approvedPayment?.subscriptionExpiresAt || calculatedExpiry;
+  const approvedPayments = await Payment.findAll({
+    where: { userId: user.id, status: 'approved' },
+    include: [{ model: Package, as: 'package' }],
+    order: [['approvedAt', 'DESC'], ['createdAt', 'DESC']],
+    transaction
+  });
+  const now = new Date();
+  const activePlans = approvedPayments.filter((payment) => {
+    const start = payment.approvedAt || payment.createdAt;
+    const expiry = payment.subscriptionExpiresAt || (start && new Date(new Date(start).getTime() + 30 * 24 * 60 * 60 * 1000));
+    return expiry && new Date(expiry) >= now;
+  }).map((payment) => ({
+    paymentId: payment.id,
+    packageId: payment.packageId,
+    planName: payment.package?.name || 'Plan',
+    planStartDate: dateOnly(payment.approvedAt || payment.createdAt),
+    planExpiryDate: dateOnly(payment.subscriptionExpiresAt || new Date(new Date(payment.approvedAt || payment.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000))
+  }));
   const active = Boolean(plan && user.status === 'active' && (!planExpiry || new Date(planExpiry) >= new Date()));
   const freePayoutEligibleAt = new Date(new Date(user.createdAt || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000);
   const totalAdvertisements = plan ? Number(plan.dailyAdsRequired || plan.minAdsRequired || 20) : FREE_AD_LIMIT;
@@ -61,7 +79,8 @@ async function subscriptionSummary(user, options = {}) {
     advertisementsCompleted: cappedCompleted,
     remainingAdvertisements: Math.max(totalAdvertisements - cappedCompleted, 0),
     remainingTasks: Math.max(totalAdvertisements - cappedCompleted, 0),
-    approvedPaymentId: approvedPayment?.id || null
+    approvedPaymentId: approvedPayment?.id || null,
+    activePlans
   };
 }
 

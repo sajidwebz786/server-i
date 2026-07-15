@@ -8,7 +8,7 @@ const FREE_AD_REWARD = 0.5;
 function isActive(user, payment) {
   if (!payment) return false;
   const startDate = payment?.approvedAt || payment?.createdAt || user.createdAt;
-  const expiresAt = user.subscriptionExpiresAt || payment?.subscriptionExpiresAt || new Date(new Date(startDate).getTime() + 30 * 24 * 60 * 60 * 1000);
+  const expiresAt = payment?.subscriptionExpiresAt || new Date(new Date(startDate).getTime() + 30 * 24 * 60 * 60 * 1000);
   return user.status === 'active' && (!expiresAt || new Date(expiresAt) >= new Date());
 }
 
@@ -21,6 +21,12 @@ async function subscriptionSummaryForUser(user, options = {}) {
   });
 
   const packageRecord = payment?.package || user.package || null;
+  const approvedPayments = await Payment.findAll({
+    where: { userId: user.id, status: 'approved' },
+    include: [{ model: Package, as: 'package' }],
+    order: [['approvedAt', 'DESC'], ['createdAt', 'DESC']],
+    transaction: options.transaction
+  });
 
   const startDate = payment?.approvedAt || payment?.createdAt || user.createdAt;
   const taskWhere = {
@@ -53,14 +59,25 @@ async function subscriptionSummaryForUser(user, options = {}) {
     planAmount: packageRecord ? Number(packageRecord.baseAmount || payment?.amount || 0) : 0,
     payableAmount: packageRecord ? Number(packageRecord.finalAmount || payment?.amount || 0) : 0,
     planStartDate: startDate,
-    planExpiryDate: user.subscriptionExpiresAt || new Date(new Date(startDate).getTime() + 30 * 24 * 60 * 60 * 1000),
+    planExpiryDate: payment?.subscriptionExpiresAt || new Date(new Date(startDate).getTime() + 30 * 24 * 60 * 60 * 1000),
     status: packageRecord ? (isActive(user, payment) ? 'active' : 'inactive') : 'free',
     totalAdvertisements,
     remainingAdvertisements,
     advertisementsCompleted,
     remainingTasks: remainingAdvertisements,
     earningPerAdvertisement: packageRecord ? earningPerAdForPackage(packageRecord) : FREE_AD_REWARD,
-    paymentId: payment?.id || null
+    paymentId: payment?.id || null,
+    activePlans: approvedPayments.filter((item) => {
+      const itemStart = item.approvedAt || item.createdAt;
+      const expiry = item.subscriptionExpiresAt || (itemStart && new Date(new Date(itemStart).getTime() + 30 * 24 * 60 * 60 * 1000));
+      return expiry && new Date(expiry) >= new Date();
+    }).map((item) => ({
+      paymentId: item.id,
+      packageId: item.packageId,
+      planName: item.package?.name || 'Plan',
+      planStartDate: item.approvedAt || item.createdAt,
+      planExpiryDate: item.subscriptionExpiresAt || new Date(new Date(item.approvedAt || item.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000)
+    }))
   };
 }
 
