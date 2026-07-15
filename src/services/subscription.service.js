@@ -54,6 +54,22 @@ async function subscriptionSummaryForUser(user, options = {}) {
     : 0;
   const remainingAdvertisements = Math.max(totalAdvertisements - advertisementsCompleted, 0);
 
+  const now = new Date();
+  const plans = approvedPayments.map((item) => {
+    const itemStart = item.approvedAt || item.createdAt;
+    const expiry = item.subscriptionExpiresAt || (itemStart && new Date(new Date(itemStart).getTime() + 30 * 24 * 60 * 60 * 1000));
+    return {
+      paymentId: item.id,
+      packageId: item.packageId,
+      planName: item.package?.name || 'Plan',
+      planAmount: Number(item.package?.baseAmount || 0),
+      payableAmount: Number(item.amount || item.package?.finalAmount || 0),
+      planStartDate: itemStart,
+      planExpiryDate: expiry,
+      status: expiry && new Date(expiry) >= now ? 'active' : 'expired'
+    };
+  });
+
   return {
     planName: packageRecord?.name || 'Free Joiner',
     planAmount: packageRecord ? Number(packageRecord.baseAmount || payment?.amount || 0) : 0,
@@ -67,17 +83,8 @@ async function subscriptionSummaryForUser(user, options = {}) {
     remainingTasks: remainingAdvertisements,
     earningPerAdvertisement: packageRecord ? earningPerAdForPackage(packageRecord) : FREE_AD_REWARD,
     paymentId: payment?.id || null,
-    activePlans: approvedPayments.filter((item) => {
-      const itemStart = item.approvedAt || item.createdAt;
-      const expiry = item.subscriptionExpiresAt || (itemStart && new Date(new Date(itemStart).getTime() + 30 * 24 * 60 * 60 * 1000));
-      return expiry && new Date(expiry) >= new Date();
-    }).map((item) => ({
-      paymentId: item.id,
-      packageId: item.packageId,
-      planName: item.package?.name || 'Plan',
-      planStartDate: item.approvedAt || item.createdAt,
-      planExpiryDate: item.subscriptionExpiresAt || new Date(new Date(item.approvedAt || item.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000)
-    }))
+    plans,
+    activePlans: plans.filter((item) => item.status === 'active')
   };
 }
 

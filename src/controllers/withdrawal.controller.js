@@ -1,4 +1,4 @@
-const { sequelize, Withdrawal, BankDetail, User, Wallet, Notification } = require('../models');
+const { sequelize, Withdrawal, BankDetail, User, Wallet, Notification, Payment } = require('../models');
 const {
   reserveWithdrawal,
   releaseWithdrawal,
@@ -50,7 +50,15 @@ function presentWithdrawal(withdrawal) {
 }
 
 exports.request = asyncHandler(async (req, res) => {
-  const hasActivePaidPlan = Boolean(req.user.packageId && req.user.status === 'active' && (!req.user.subscriptionExpiresAt || new Date(req.user.subscriptionExpiresAt) >= new Date()));
+  const approvedPayments = await Payment.findAll({
+    where: { userId: req.user.id, status: 'approved' },
+    attributes: ['approvedAt', 'createdAt', 'subscriptionExpiresAt']
+  });
+  const hasActivePaidPlan = approvedPayments.some((payment) => {
+    const start = payment.approvedAt || payment.createdAt;
+    const expiry = payment.subscriptionExpiresAt || (start && new Date(new Date(start).getTime() + 30 * 24 * 60 * 60 * 1000));
+    return expiry && new Date(expiry) >= new Date();
+  });
   const freePayoutEligibleAt = new Date(new Date(req.user.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000);
   if (!hasActivePaidPlan && freePayoutEligibleAt > new Date()) {
     throw new ApiError(400, `Free-plan payout is available after ${freePayoutEligibleAt.toISOString().slice(0, 10)}. Paid-plan payouts may be processed earlier after activation and admin approval.`);

@@ -14,10 +14,6 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function hasActivePackage(user) {
-  return Boolean(user?.packageId && user.status === 'active' && (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) >= new Date()));
-}
-
 async function notifyOnce({ event, title, body, data }) {
   const existing = await Notification.findOne({
     where: {
@@ -72,7 +68,7 @@ function taskRewardAmount(task) {
 }
 
 async function creditFreeDirectReferralOnce({ user, submission, taskDate, taskReward }, options = {}) {
-  if (hasActivePackage(user) || !user?.referredById || taskReward <= 0) return null;
+  if ((await approvedPackageIdsForUser(user.id, options)).length || !user?.referredById || taskReward <= 0) return null;
   const transaction = options.transaction;
   const existing = await Income.findOne({
     where: {

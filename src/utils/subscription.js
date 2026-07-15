@@ -30,17 +30,21 @@ async function subscriptionSummary(user, options = {}) {
     transaction
   });
   const now = new Date();
-  const activePlans = approvedPayments.filter((payment) => {
+  const plans = approvedPayments.map((payment) => {
     const start = payment.approvedAt || payment.createdAt;
     const expiry = payment.subscriptionExpiresAt || (start && new Date(new Date(start).getTime() + 30 * 24 * 60 * 60 * 1000));
-    return expiry && new Date(expiry) >= now;
-  }).map((payment) => ({
-    paymentId: payment.id,
-    packageId: payment.packageId,
-    planName: payment.package?.name || 'Plan',
-    planStartDate: dateOnly(payment.approvedAt || payment.createdAt),
-    planExpiryDate: dateOnly(payment.subscriptionExpiresAt || new Date(new Date(payment.approvedAt || payment.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000))
-  }));
+    return {
+      paymentId: payment.id,
+      packageId: payment.packageId,
+      planName: payment.package?.name || 'Plan',
+      planAmount: Number(payment.package?.baseAmount || 0),
+      payableAmount: Number(payment.amount || payment.package?.finalAmount || 0),
+      planStartDate: dateOnly(start),
+      planExpiryDate: dateOnly(expiry),
+      status: expiry && new Date(expiry) >= now ? 'active' : 'expired'
+    };
+  });
+  const activePlans = plans.filter((item) => item.status === 'active');
   const active = Boolean(plan && user.status === 'active' && (!planExpiry || new Date(planExpiry) >= new Date()));
   const freePayoutEligibleAt = new Date(new Date(user.createdAt || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000);
   const totalAdvertisements = plan ? Number(plan.dailyAdsRequired || plan.minAdsRequired || 20) : FREE_AD_LIMIT;
@@ -80,6 +84,7 @@ async function subscriptionSummary(user, options = {}) {
     remainingAdvertisements: Math.max(totalAdvertisements - cappedCompleted, 0),
     remainingTasks: Math.max(totalAdvertisements - cappedCompleted, 0),
     approvedPaymentId: approvedPayment?.id || null,
+    plans,
     activePlans
   };
 }

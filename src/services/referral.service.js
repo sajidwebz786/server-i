@@ -5,7 +5,8 @@ const {
   Referral,
   Income,
   IncomeSetting,
-  Notification
+  Notification,
+  Payment
 } = require('../models');
 const { creditIncome, money } = require('./wallet.service');
 
@@ -60,16 +61,18 @@ async function creditReferralIncome({ user, packageRecord, payment }, options = 
 
   const credited = [];
   for (const referral of referrals) {
-    const recipient = await User.findByPk(referral.parentUserId, {
-      attributes: ['id', 'packageId', 'status', 'subscriptionExpiresAt'],
+    const recipient = await User.findByPk(referral.parentUserId, { attributes: ['id', 'status'], transaction });
+    if (!recipient) continue;
+    const recipientPayments = await Payment.findAll({
+      where: { userId: recipient.id, status: 'approved' },
+      attributes: ['approvedAt', 'createdAt', 'subscriptionExpiresAt'],
       transaction
     });
-    if (!recipient) continue;
-    const recipientHasPaidPlan = Boolean(
-      recipient.packageId &&
-      recipient.status === 'active' &&
-      (!recipient.subscriptionExpiresAt || new Date(recipient.subscriptionExpiresAt) >= new Date())
-    );
+    const recipientHasPaidPlan = recipient.status === 'active' && recipientPayments.some((item) => {
+      const start = item.approvedAt || item.createdAt;
+      const expiry = item.subscriptionExpiresAt || (start && new Date(new Date(start).getTime() + 30 * 24 * 60 * 60 * 1000));
+      return expiry && new Date(expiry) >= new Date();
+    });
     if (!recipientHasPaidPlan && referral.level > 1) continue;
 
     const existingIncome = await Income.findOne({

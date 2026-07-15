@@ -54,8 +54,6 @@ exports.approve = asyncHandler(async (req, res) => {
   await sequelize.transaction(async (transaction) => {
     const now = new Date();
     const nextExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    const currentExpiry = payment.user.subscriptionExpiresAt ? new Date(payment.user.subscriptionExpiresAt) : null;
-    const accountExpiry = currentExpiry && currentExpiry > nextExpiry ? currentExpiry : nextExpiry;
 
     await payment.update({
       status: 'approved',
@@ -67,8 +65,7 @@ exports.approve = asyncHandler(async (req, res) => {
 
     await payment.user.update({
       status: 'active',
-      packageId: payment.packageId,
-      subscriptionExpiresAt: accountExpiry
+      packageId: payment.packageId
     }, { transaction });
 
     await buildReferralChain(payment.user, payment.packageId, { transaction });
