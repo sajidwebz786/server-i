@@ -266,17 +266,19 @@ exports.create = asyncHandler(async (req, res) => {
 
 exports.postTodayTwenty = asyncHandler(async (req, res) => {
   const rows = Array.isArray(req.body.tasks) ? req.body.tasks : [];
-  if (rows.length !== 20) throw new ApiError(400, 'Exactly 20 tasks are required');
+  const requestedPackageId = req.body.packageId || null;
+  const expectedCount = requestedPackageId ? 20 : FREE_AD_LIMIT;
+  if (rows.length !== expectedCount) throw new ApiError(400, `Exactly ${expectedCount} tasks are required for this plan`);
   const startsAt = new Date();
   const endsAt = new Date(startsAt.getTime() + 24 * 60 * 60 * 1000);
-  const requestedPackageIds = [...new Set(rows.map((item) => item.packageId || req.body.packageId).filter(Boolean))];
+  const requestedPackageIds = [...new Set(rows.map((item) => item.packageId || requestedPackageId).filter(Boolean))];
   const selectedPackages = requestedPackageIds.length
     ? await Package.findAll({ where: { id: { [Op.in]: requestedPackageIds } } })
     : [];
   const packageById = new Map(selectedPackages.map((pkg) => [pkg.id, pkg]));
   const payloads = rows.map((item, index) => {
     if (!item.taskUrl) throw new ApiError(400, `Task ${index + 1} URL is required`);
-    const packageId = item.packageId || req.body.packageId || null;
+    const packageId = requestedPackageId || item.packageId || null;
     const selectedPackage = packageById.get(packageId);
     return {
       title: item.title || `Today's Advertisement ${index + 1}`,
