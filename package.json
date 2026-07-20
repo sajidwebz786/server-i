@@ -8,6 +8,7 @@
     "start": "node server.js",
     "db:init": "node scripts/initDb.js",
     "db:reset": "node scripts/resetDb.js",
+    "db:reset-user-activity": "node scripts/resetUserActivityPreserveAccounts.js",
     "db:add-avatar-url": "node scripts/addAvatarUrlColumn.js",
     "db:apply-ad-plan-schema": "node scripts/applyAdPlanSchema.js",
     "db:apply-commission-structure": "node scripts/applyCommissionStructure.js",
