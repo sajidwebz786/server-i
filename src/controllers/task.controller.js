@@ -232,21 +232,18 @@ exports.list = asyncHandler(async (req, res) => {
       };
     });
   if (req.user.role !== 'admin') {
-    const seenLinks = new Set();
-    const activePlan = req.user.packageId
-      ? visibleTasks.find((task) => task.packageId === req.user.packageId)?.package
-      : visibleTasks.find((task) => task.package)?.package;
-    const paidLimit = packageIds.length ? Number(activePlan?.dailyAdsRequired || activePlan?.minAdsRequired || 20) : 0;
+    const paidCounts = new Map();
     let freeCount = 0;
-    let paidCount = 0;
     visibleTasks = visibleTasks.filter((task) => {
-      const linkKey = String(task.taskUrl || task.videoUrl || task.title || task.id).trim().toLowerCase();
-      if (linkKey && seenLinks.has(linkKey)) return false;
       if (!task.packageId && freeCount >= FREE_AD_LIMIT) return false;
-      if (task.packageId && paidCount >= paidLimit) return false;
-      if (linkKey) seenLinks.add(linkKey);
-      if (task.packageId) paidCount += 1;
-      else freeCount += 1;
+      if (task.packageId) {
+        const planLimit = Number(task.package?.dailyAdsRequired || task.package?.minAdsRequired || 20);
+        const planCount = Number(paidCounts.get(task.packageId) || 0);
+        if (planCount >= planLimit) return false;
+        paidCounts.set(task.packageId, planCount + 1);
+      } else {
+        freeCount += 1;
+      }
       return true;
     });
   }
@@ -255,7 +252,15 @@ exports.list = asyncHandler(async (req, res) => {
 });
 
 exports.create = asyncHandler(async (req, res) => {
-  const task = await Task.create(req.body);
+  const payload = { ...req.body };
+  if (payload.packageId) {
+    const selectedPackage = await Package.findByPk(payload.packageId);
+    if (!selectedPackage) throw new ApiError(400, 'Selected package not found');
+    payload.rewardAmount = earningPerAdForPackage(selectedPackage);
+  } else {
+    payload.rewardAmount = FREE_AD_REWARD;
+  }
+  const task = await Task.create(payload);
   res.status(201).json({ task });
 });
 
@@ -264,15 +269,22 @@ exports.postTodayTwenty = asyncHandler(async (req, res) => {
   if (rows.length !== 20) throw new ApiError(400, 'Exactly 20 tasks are required');
   const startsAt = new Date();
   const endsAt = new Date(startsAt.getTime() + 24 * 60 * 60 * 1000);
+  const requestedPackageIds = [...new Set(rows.map((item) => item.packageId || req.body.packageId).filter(Boolean))];
+  const selectedPackages = requestedPackageIds.length
+    ? await Package.findAll({ where: { id: { [Op.in]: requestedPackageIds } } })
+    : [];
+  const packageById = new Map(selectedPackages.map((pkg) => [pkg.id, pkg]));
   const payloads = rows.map((item, index) => {
     if (!item.taskUrl) throw new ApiError(400, `Task ${index + 1} URL is required`);
+    const packageId = item.packageId || req.body.packageId || null;
+    const selectedPackage = packageById.get(packageId);
     return {
       title: item.title || `Today's Advertisement ${index + 1}`,
       platform: item.platform || 'youtube',
       taskUrl: item.taskUrl,
       description: item.description || 'Watch the complete advertisement to finish this task.',
-      rewardAmount: Number(item.rewardAmount || 0),
-      packageId: item.packageId || req.body.packageId || null,
+      rewardAmount: selectedPackage ? earningPerAdForPackage(selectedPackage) : FREE_AD_REWARD,
+      packageId,
       startsAt,
       endsAt,
       status: ['active', 'inactive', 'expired'].includes(item.status) ? item.status : 'active'
@@ -285,7 +297,16 @@ exports.postTodayTwenty = asyncHandler(async (req, res) => {
 exports.update = asyncHandler(async (req, res) => {
   const task = await Task.findByPk(req.params.id);
   if (!task) throw new ApiError(404, 'Task not found');
-  await task.update(req.body);
+  const payload = { ...req.body };
+  const packageId = Object.prototype.hasOwnProperty.call(payload, 'packageId') ? payload.packageId : task.packageId;
+  if (packageId) {
+    const selectedPackage = await Package.findByPk(packageId);
+    if (!selectedPackage) throw new ApiError(400, 'Selected package not found');
+    payload.rewardAmount = earningPerAdForPackage(selectedPackage);
+  } else {
+    payload.rewardAmount = FREE_AD_REWARD;
+  }
+  await task.update(payload);
   res.json({ task });
 });
 
