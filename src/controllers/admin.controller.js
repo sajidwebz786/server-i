@@ -564,7 +564,7 @@ exports.broadcast = asyncHandler(async (req, res) => {
       title: req.body.title,
       body: req.body.body,
       type,
-      data: req.body.data || null
+      data: { ...(req.body.data || {}), source: 'admin', audience: 'all', targetScope: 'all' }
     });
     return res.status(201).json({ notification, count: 1 });
   }
@@ -578,7 +578,7 @@ exports.broadcast = asyncHandler(async (req, res) => {
     title: req.body.title,
     body: req.body.body,
     type,
-    data: { ...(req.body.data || {}), targetScope, targetUserId }
+    data: { ...(req.body.data || {}), source: 'admin', audience: 'user', targetScope, targetUserId }
   }));
 
   const notifications = await Notification.bulkCreate(payloads);

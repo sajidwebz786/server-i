@@ -2,13 +2,25 @@ const { Op } = require('sequelize');
 const { Notification } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 
+function isAdminBroadcast(notification) {
+  if (!notification || notification.userId) return false;
+  const data = notification.data || {};
+  return notification.type === 'general' || (data.source === 'admin' && data.audience === 'all');
+}
+
 exports.list = asyncHandler(async (req, res) => {
   const rows = await Notification.findAll({
-    where: { [Op.or]: [{ userId: req.user.id }, { userId: null }] },
+    where: {
+      [Op.or]: [
+        { userId: req.user.id },
+        { userId: null, type: 'general' },
+        { userId: null, data: { [Op.contains]: { source: 'admin', audience: 'all' } } }
+      ]
+    },
     order: [['createdAt', 'DESC']],
     limit: 50
   });
-  const notifications = rows.map((row) => {
+  const notifications = rows.filter((row) => row.userId === req.user.id || isAdminBroadcast(row)).map((row) => {
     const item = row.toJSON();
     if (!item.userId && Array.isArray(item.data?.readBy) && item.data.readBy.includes(req.user.id)) {
       item.readAt = item.data.readAtBy?.[req.user.id] || item.updatedAt || item.createdAt;
@@ -19,13 +31,8 @@ exports.list = asyncHandler(async (req, res) => {
 });
 
 exports.markRead = asyncHandler(async (req, res) => {
-  const notification = await Notification.findOne({
-    where: {
-      id: req.params.id,
-      [Op.or]: [{ userId: req.user.id }, { userId: null }]
-    }
-  });
-  if (!notification) return res.json({ updated: 0 });
+  const notification = await Notification.findByPk(req.params.id);
+  if (!notification || (notification.userId !== req.user.id && !isAdminBroadcast(notification))) return res.json({ updated: 0 });
 
   if (notification.userId) {
     await notification.update({ readAt: new Date() });

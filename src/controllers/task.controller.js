@@ -14,16 +14,17 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-async function notifyOnce({ event, title, body, data }) {
+async function notifyOnce({ userId, event, title, body, data }) {
   const existing = await Notification.findOne({
     where: {
+      userId,
       type: 'task',
       data: { [Op.contains]: { event, ...data } }
     }
   });
   if (existing) return existing;
   return Notification.create({
-    userId: null,
+    userId,
     title,
     body,
     type: 'task',
@@ -151,9 +152,10 @@ async function maybeNotifyTaskCompletion({ req, task, submission, taskDate, prev
   if (previousPercent >= 100 || percent < 100) return;
 
   await notifyOnce({
+    userId: req.user.id,
     event: 'task_completed',
     title: 'Task completed',
-    body: `${req.user.name || 'A member'} completed "${task.title}".`,
+    body: `You completed "${task.title}".`,
     data: { userId: req.user.id, taskId: task.id, userTaskId: submission.id, taskDate }
   });
 
@@ -178,9 +180,10 @@ async function maybeNotifyTaskCompletion({ req, task, submission, taskDate, prev
 
   if (completedCount >= requiredCount) {
     await notifyOnce({
+      userId: req.user.id,
       event: 'daily_tasks_completed',
       title: 'Daily tasks completed',
-      body: `${req.user.name || 'A member'} completed all ${requiredCount} tasks for ${taskDate}.`,
+      body: `You completed all ${requiredCount} tasks for ${taskDate}.`,
       data: { userId: req.user.id, taskDate }
     });
   }
